@@ -1,20 +1,6 @@
-// app/mentees/page.tsx
-import { Suspense } from "react";
-
-// Server-komponent (må IKKE kalde useSearchParams)
-// Wrapper Client-delen i <Suspense> for at undgå CSR-bailout fejlen ved build.
-export default function MenteesPage() {
-    return (
-        <Suspense fallback={<div className="p-6">Loader mentees…</div>}>
-            <MenteesClient />
-        </Suspense>
-    );
-}
-
-/* ---------------------- Client-del nedenfor ---------------------- */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Mentee } from "@/app/_components/MentorOverview";
 import { useSession } from "next-auth/react";
@@ -23,6 +9,7 @@ const gold = "#D4AF37";
 const border = "#3b3838";
 const cardBg = "#2a2727";
 
+/* ---------- localStorage helpers for ⭐ ---------- */
 function keyFor(uid?: string) {
     return `tt_starred_mentees_${uid || "anon"}`;
 }
@@ -41,12 +28,22 @@ function saveStars(ids: string[], uid?: string) {
     } catch {}
 }
 
-export function MenteesClient() {
+/** Outer page wrapped in Suspense (required for useSearchParams in Next.js app dir) */
+export default function MenteesPage() {
+    return (
+        <Suspense fallback={<div className="p-6">Loading…</div>}>
+            <MenteesInner />
+        </Suspense>
+    );
+}
+
+/** Actual client logic lives here */
+function MenteesInner() {
     const { data: session } = useSession();
     const user = session?.user;
     const searchParams = useSearchParams();
 
-    // Dummy data – i produktion hentes fra Supabase
+    // Dummy data — replace with Supabase when /api/mentees is ready
     const mentees: Mentee[] = [
         { id: "m1", name: "Amalie N.", winRate: 86, tradingPlan: ["Tag profit ved TP1", "Ingen news-trades"] },
         { id: "m2", name: "Jonas P.", winRate: 43, tradingPlan: ["Max 2 samtidige trades"] },
@@ -86,9 +83,9 @@ export function MenteesClient() {
         }
         arr.sort((a, b) => (sortDir === "desc" ? b.winRate - a.winRate : a.winRate - b.winRate));
         return arr;
-    }, [mentees, view, sortDir, q, starred]);
+    }, [view, sortDir, q, starred]);
 
-    // highlight på ?focus=id
+    // highlight på ?focus=<id>
     useEffect(() => {
         const focus = searchParams.get("focus");
         if (!focus) return;
@@ -113,8 +110,40 @@ export function MenteesClient() {
                 </a>
             </header>
 
-            {/* Controls */}
-            {/* … (behold resten af din rendering uændret) … */}
+            {/* Controls — keep your existing controls / filters / search UI here */}
+
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {filtered.map((m) => (
+                    <article
+                        key={m.id}
+                        data-mentee-id={m.id}
+                        className="rounded-2xl p-4"
+                        style={{ border: `1px solid ${border}`, background: cardBg, color: "#eee" }}
+                    >
+                        <div className="flex items-start justify-between">
+                            <h3 className="font-semibold">{m.name}</h3>
+                            <button
+                                onClick={() => toggleStar(m.id)}
+                                aria-label="toggle star"
+                                className="ml-2 text-xl leading-none"
+                                style={{ color: starred.includes(String(m.id)) ? gold : "#777" }}
+                            >
+                                ★
+                            </button>
+                        </div>
+                        <div className="mt-1 text-sm" style={{ color: "#bbb" }}>
+                            Winrate: <b style={{ color: gold }}>{m.winRate}%</b>
+                        </div>
+                        {m.tradingPlan?.length ? (
+                            <ul className="mt-2 list-disc pl-5 text-sm" style={{ color: "#ccc" }}>
+                                {m.tradingPlan.map((t, i) => (
+                                    <li key={i}>{t}</li>
+                                ))}
+                            </ul>
+                        ) : null}
+                    </article>
+                ))}
+            </section>
         </div>
     );
 }
