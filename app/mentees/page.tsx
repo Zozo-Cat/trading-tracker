@@ -1,7 +1,20 @@
 // app/mentees/page.tsx
+import { Suspense } from "react";
+
+// Server-komponent (må IKKE kalde useSearchParams)
+// Wrapper Client-delen i <Suspense> for at undgå CSR-bailout fejlen ved build.
+export default function MenteesPage() {
+    return (
+        <Suspense fallback={<div className="p-6">Loader mentees…</div>}>
+            <MenteesClient />
+        </Suspense>
+    );
+}
+
+/* ---------------------- Client-del nedenfor ---------------------- */
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Mentee } from "@/app/_components/MentorOverview";
 import { useSession } from "next-auth/react";
@@ -28,7 +41,7 @@ function saveStars(ids: string[], uid?: string) {
     } catch {}
 }
 
-export default function MenteesPage() {
+export function MenteesClient() {
     const { data: session } = useSession();
     const user = session?.user;
     const searchParams = useSearchParams();
