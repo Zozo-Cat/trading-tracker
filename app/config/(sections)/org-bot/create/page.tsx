@@ -1,30 +1,45 @@
-"use client";
+// app/config/(sections)/org-bot/create/page.tsx
+import { Suspense } from "react";
 
-import React, { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+export const dynamic = "force-dynamic"; // undgår SSG-prerender issues på Vercel
 
-function sb() {
-    return createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-}
-function InfoIcon({ title }: { title: string }) {
+export default function Page() {
     return (
-        <span
-            title={title}
-            className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px]"
-            style={{ border: "1px solid var(--tt-accent)", color: "var(--tt-accent)" }}
-        >
-      ?
-    </span>
+        <Suspense fallback={<div className="p-6">Loading…</div>}>
+            <ClientInner />
+        </Suspense>
     );
 }
-function genCode(prefix: string) {
-    return `${prefix}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-}
 
-export default function CreatePage() {
+function ClientInner() {
+    "use client";
+
+    import React, { useEffect, useState } from "react";
+    import { createClient } from "@supabase/supabase-js";
+
+    function sb() {
+        return createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
+    }
+
+    function InfoIcon({ title }: { title: string }) {
+        return (
+            <span
+                title={title}
+                className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px]"
+                style={{ border: "1px solid var(--tt-accent)", color: "var(--tt-accent)" }}
+            >
+        ?
+      </span>
+        );
+    }
+
+    function genCode(prefix: string) {
+        return `${prefix}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    }
+
     const userId = (process.env.NEXT_PUBLIC_DEV_PROFILE_ID as string) || "demo-user";
 
     // plan-badge (klikbar)
@@ -105,13 +120,10 @@ export default function CreatePage() {
     // SUBMIT: Team
     async function createTeam() {
         try {
-            // reset evtl. fejl
             setExternalError(null);
-
             const code = tCode.trim() || genCode("TEAM");
 
             if (attachMode === "own") {
-                // som før: opret team, evt. med eget community
                 const { error } = await sb().from("teams").insert({
                     name: tName,
                     description: tDesc,
@@ -139,15 +151,14 @@ export default function CreatePage() {
                     name: tName,
                     description: tDesc,
                     join_code: code,
-                    community_id: null, // start uafhængigt
+                    community_id: null,
                     owner_user_id: userId,
                 })
                 .select("id")
                 .single();
             if (teamErr) throw teamErr;
 
-            // 2) Opret tilknytnings-ansøgning via API (server håndterer validering af "TEAM invite kode")
-            //    OBS: Backend-endpoint skal implementeres. Vi håndterer fejl-cases pænt på klienten.
+            // 2) Request link via server‑API
             const res = await fetch("/api/team-links/request", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -158,17 +169,13 @@ export default function CreatePage() {
                 }),
             });
 
-            // Forventet svar:
-            // 200 OK  -> { status: "ok" }
-            // 400     -> { error: "...", code: "INVITE_NOT_TEAM" | "INVITE_INVALID" | "COMMUNITY_NOT_FOUND" | ... , communityName?: string }
             const payload = await res.json().catch(() => ({} as any));
             if (!res.ok) {
-                // Særligt krav: hvis kode er forkert type (fx bruger-kode i stedet for "Team Invite Kode")
                 if (payload?.code === "INVITE_NOT_TEAM") {
                     const name = payload?.communityName || "dette community";
                     setExternalError(
                         `For at ansøge om tilknytning til ${name} skal du bruge "Team Invite Kode". ` +
-                        `Har du den ikke, modtager du den ved at kontakte det community, du ønsker tilknytning til.`
+                        `Har du den ikke, kontakt det community du vil tilknyttes.`
                     );
                 } else if (payload?.code === "INVITE_INVALID") {
                     setExternalError("Team Invite Kode er ugyldig eller udløbet.");
@@ -229,7 +236,7 @@ export default function CreatePage() {
 
             {/* Kompakt 2-kolonne layout */}
             <div className="grid gap-8 lg:grid-cols-2">
-                {/* Community card – altid synligt; låst hvis ikke PRO */}
+                {/* Community card */}
                 <section
                     className="relative rounded-2xl p-6"
                     style={{ backgroundColor: "#1a1717", border: "1px solid var(--tt-accent)" }}
@@ -242,7 +249,6 @@ export default function CreatePage() {
                         Et community er en overordnet organisation. Du kan oprette egne teams og tilknytte uafhængige teams.
                     </p>
 
-                    {/* Låse-overlay + CTA (kun når ikke PRO) */}
                     {locked && (
                         <div className="absolute inset-0 rounded-2xl flex items-center justify-center"
                              style={{ background: "rgba(0,0,0,0.4)" }}>
@@ -392,7 +398,7 @@ export default function CreatePage() {
                                 </button>
                             </div>
 
-                            {/* OWN: dropdown som før */}
+                            {/* OWN: dropdown */}
                             {attachMode === "own" && (
                                 <select
                                     value={attachCommunity}
@@ -409,7 +415,7 @@ export default function CreatePage() {
                                 </select>
                             )}
 
-                            {/* EXTERNAL: to felter + inline fejl */}
+                            {/* EXTERNAL: felter + fejl */}
                             {attachMode === "external" && (
                                 <div className="space-y-3">
                                     <label className="block text-sm" style={{ color: "var(--tt-accent)" }}>
