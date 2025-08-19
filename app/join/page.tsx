@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
@@ -24,7 +25,9 @@ function isExpired(iso: string | null) {
     return new Date(iso).getTime() < Date.now();
 }
 
-export default function JoinPage() {
+// ⬇️ Var: `export default function JoinPage()`
+// ⬆️ Nu: gør den ikke-default og kald den JoinPageInner
+function JoinPageInner() {
     const sp = useSearchParams();
     const devProfileId = (process.env.NEXT_PUBLIC_DEV_PROFILE_ID as string) || 'demo-user';
 
@@ -54,12 +57,10 @@ export default function JoinPage() {
         if (invite.max_uses != null && invite.uses >= invite.max_uses) return showToast('warn','Invite er opbrugt');
 
         try {
-            // Hvis invite er knyttet til et team, tilmeld medlem der
             if (invite.team_id) {
                 const { error: mErr } = await sb.from('team_members').insert({ team_id: invite.team_id, profile_id: devProfileId } as any);
                 if (mErr) throw mErr;
             }
-            // Opdater forbrug
             const { error: uErr } = await sb.from('invites').update({ uses: (invite.uses || 0) + 1 }).eq('id', invite.id);
             if (uErr) throw uErr;
 
@@ -153,7 +154,7 @@ export default function JoinPage() {
                 </section>
             )}
 
-            {/* Panel: Team ID + kode (server-API bevares) */}
+            {/* Panel: Team ID + kode */}
             {tab==='team' && (
                 <section className="rounded-2xl p-4 space-y-3" style={{ border:`1px solid ${gold}`, background: dark }}>
                     <form onSubmit={submitTeamJoin} className="space-y-3">
@@ -212,5 +213,14 @@ export default function JoinPage() {
                 </div>
             )}
         </main>
+    );
+}
+
+// ⬇️ Ny default export: wrapper i Suspense
+export default function Page() {
+    return (
+        <Suspense fallback={null}>
+            <JoinPageInner />
+        </Suspense>
     );
 }
