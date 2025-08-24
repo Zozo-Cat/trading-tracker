@@ -1,6 +1,8 @@
+// app/config/(sections)/org-bot/invites/page.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { Suspense } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 type Community = {
@@ -63,7 +65,8 @@ function Badge({
     );
 }
 
-export default function InvitesPage() {
+// ----------------- INDHOLD FLYTTET HERUNDER -----------------
+function InvitesPageInner() {
     const [communities, setCommunities] = useState<
         (Community & { invites?: Invite[]; _invitesLoaded?: boolean })[]
     >([]);
@@ -141,7 +144,7 @@ export default function InvitesPage() {
                 )
             );
             if (ensureOpen) {
-                // no-op hook: UI viser automatisk når der findes invites
+                // no-op
             }
         } catch (e: any) {
             showToast("error", e.message);
@@ -167,7 +170,6 @@ export default function InvitesPage() {
     }
 
     function buildJoinLink(code: string) {
-        // fallback til relativ hvis location ikke findes (SSR edge cases)
         try {
             const origin =
                 typeof window !== "undefined" && window.location?.origin
@@ -440,5 +442,16 @@ export default function InvitesPage() {
                 </div>
             )}
         </main>
+    );
+}
+
+// ----------------- SUSPENSE WRAPPER (krav i Next 15) -----------------
+export const dynamic = "force-dynamic";
+
+export default function InvitesPage() {
+    return (
+        <Suspense fallback={<div className="p-6">Indlæser…</div>}>
+            <InvitesPageInner />
+        </Suspense>
     );
 }

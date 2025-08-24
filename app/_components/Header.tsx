@@ -4,7 +4,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { Bell } from "lucide-react";
 import CommunityPicker from "@/app/_components/CommunityPicker";
 
@@ -110,25 +110,50 @@ export default function Header() {
                         <span className="px-3 py-2 rounded-md border border-transparent text-gray-500">…</span>
                     ) : !user ? (
                         <>
-                            <Link href="/planer" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>Planer og Priser</Link>
-                            <Link href="/saadan-virker-det" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>Sådan virker det</Link>
-                            {process.env.NODE_ENV === "development" && (
-                                <Link href="/dev/login" className="px-3 py-2 rounded-md border border-dashed text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>Dev</Link>
-                            )}
-                            <button
-                                onClick={() => signIn("discord")}
+                            {/* Nye links for ikke-loggede */}
+                            <Link href="/nyheder" className="px-3 py-2 rounded-md border text-sm"
+                                  style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
+                                Nyheder
+                            </Link>
+                            <Link href="/partnere" className="px-3 py-2 rounded-md border text-sm"
+                                  style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
+                                Partnere
+                            </Link>
+
+                            {/* Behold eksisterende info-links */}
+                            <Link href="/planer" className="px-3 py-2 rounded-md border text-sm"
+                                  style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
+                                Planer og Priser
+                            </Link>
+                            <Link href="/saadan-virker-det" className="px-3 py-2 rounded-md border text-sm"
+                                  style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
+                                Sådan virker det
+                            </Link>
+
+                            {/* Fjernet: Dev-linket */}
+
+                            {/* Call-to-actions */}
+                            <Link
+                                href="/login"
                                 className="px-3 py-2 rounded-md text-black font-medium text-sm"
                                 style={{ backgroundColor: "#76ed77" }}
                             >
                                 Log ind
-                            </button>
+                            </Link>
+
+                            <Link
+                                href="/signup"
+                                className="px-3 py-2 rounded-md text-black font-medium text-sm"
+                                style={{ backgroundColor: "#5dade2" }} // anden farve end "Log ind"
+                            >
+                                Registrer dig
+                            </Link>
                         </>
                     ) : (
                         <>
                             <Link href="/trades" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>Mine trades</Link>
                             <Link href="/teams" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>Mine teams</Link>
                             <Link href="/statistik" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>Statistik</Link>
-
                             <Link href="/opgrader" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>Opgrader</Link>
 
                             <div className="ml-1 mr-1">

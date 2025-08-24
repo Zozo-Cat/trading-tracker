@@ -1,28 +1,82 @@
 // lib/auth.ts
-import NextAuth from "next-auth";
+import NextAuth, { NextAuthOptions } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
+import CredentialsProvider from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
+import { prisma } from "./db";
 
-export const authOptions = {
+export const authOptions: NextAuthOptions = {
+    session: {
+        strategy: "jwt",
+    },
     providers: [
+        // Behold Discord login
         DiscordProvider({
             clientId: process.env.DISCORD_CLIENT_ID!,
             clientSecret: process.env.DISCORD_CLIENT_SECRET!,
         }),
+
+        // NYT: Login med email + kodeord
+        CredentialsProvider({
+            name: "Email & Kodeord",
+            credentials: {
+                email: { label: "Email", type: "text" },
+                password: { label: "Kodeord", type: "password" },
+            },
+            async authorize(credentials) {
+                const email = credentials?.email?.toLowerCase().trim();
+                const password = credentials?.password?.trim();
+                if (!email || !password) return null;
+
+                const user = await prisma.user.findUnique({
+                    where: { email },
+                    select: {
+                        id: true,
+                        email: true,
+                        name: true,
+                        image: true,
+                        passwordHash: true,
+                        role: true,
+                        discordId: true,
+                    },
+                });
+
+                if (!user || !user.passwordHash) return null;
+
+                const ok = await bcrypt.compare(password, user.passwordHash);
+                if (!ok) return null;
+
+                return {
+                    id: user.id,
+                    email: user.email || undefined,
+                    name: user.name || undefined,
+                    image: user.image || undefined,
+                    role: user.role || "user",
+                    discordId: user.discordId || null,
+                } as any;
+            },
+        }),
     ],
+
     callbacks: {
-        async jwt({ token, account }) {
-            // Bevar dine eksisterende felter
+        async jwt({ token, account, user }) {
+            // === Bevar Discord ting ===
             if (account?.provider === "discord" && account.access_token) {
                 (token as any).discordAccessToken = account.access_token;
             }
             (token as any).discordUserId = token.sub;
 
-            // NYT: gem Discord snowflake (providerAccountId) første login
             if (account?.provider === "discord" && account.providerAccountId) {
                 (token as any).discordId = account.providerAccountId;
             }
 
-            // NYT: admin-allowlist fra env
+            // === NYT: Credentials login ===
+            if (user) {
+                (token as any).role = (user as any).role || "user";
+                (token as any).discordId = (user as any).discordId ?? (token as any).discordId ?? null;
+            }
+
+            // === Admin allowlist ===
             const adminIds = (process.env.ADMIN_DISCORD_IDS || "")
                 .split(",")
                 .map(s => s.trim())
@@ -37,30 +91,26 @@ export const authOptions = {
             const isAdminByEmail =
                 token.email && adminEmails.includes(String(token.email).toLowerCase());
 
-            (token as any).role =
-                isAdminById || isAdminByEmail ? "admin" : "user";
+            (token as any).role = isAdminById || isAdminByEmail ? "admin" : (token as any).role || "user";
 
             return token;
         },
 
         async session({ session, token }) {
-            // Bevar dine eksisterende felter i session
-            (session as any).discordAccessToken =
-                (token as any).discordAccessToken ?? null;
+            // Bevar eksisterende felter
+            (session as any).discordAccessToken = (token as any).discordAccessToken ?? null;
             (session as any).discordUserId = (token as any).discordUserId ?? null;
 
-            // NYT: eksponer discordId og role i session
+            // Eksponer discordId og role
             (session as any).discordId = (token as any).discordId ?? null;
 
-            // Sørg for at user.id findes
             if (session.user && token.sub) {
                 (session.user as any).id = (session.user as any).id || token.sub;
             }
 
-            // NYT: læg rolle på user
             (session.user as any).role = (token as any).role || "user";
 
-            // NYT: giv admin fuld adgang i UI (matcher dine checks i siderne)
+            // Admin = fuld adgang i UI
             if ((token as any).role === "admin") {
                 (session.user as any).isTeamLead = true;
                 (session.user as any).isCommunityLead = true;

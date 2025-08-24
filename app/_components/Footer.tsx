@@ -1,4 +1,6 @@
 // app/_components/Footer.tsx
+import Link from "next/link";
+
 export default function Footer() {
     return (
         <footer className="mt-16 border-t border-gray-700" style={{ backgroundColor: "#1a1818" }}>
@@ -18,10 +20,11 @@ export default function Footer() {
                 <div>
                     <div className="font-medium mb-3" style={{ color: "#D4AF37" }}>Links</div>
                     <ul className="space-y-2">
-                        <li><a href="/funktioner" className="hover:underline">Funktioner</a></li>
-                        <li><a href="/gratis" className="hover:underline">Gratis adgang</a></li>
-                        <li><a href="/køb" className="hover:underline">Køb adgang</a></li>
-                        <li><a href="/signup" className="hover:underline">Log ind / Opret</a></li>
+                        <li><Link href="/nyheder" className="hover:underline">Nyheder</Link></li>
+                        <li><Link href="/partnere" className="hover:underline">Partnere</Link></li>
+                        <li><Link href="/planer" className="hover:underline">Planer og priser</Link></li>
+                        <li><Link href="/saadan-virker-det" className="hover:underline">Sådan virker det</Link></li>
+                        <li><Link href="/signup" className="hover:underline">Log ind / Opret</Link></li>
                     </ul>
                 </div>
 
@@ -29,8 +32,18 @@ export default function Footer() {
                 <div>
                     <div className="font-medium mb-3" style={{ color: "#D4AF37" }}>Kontakt</div>
                     <ul className="space-y-2">
-                        <li>E-mail: <a href="mailto:support@tradingtracker.app" className="hover:underline">support@tradingtracker.app</a></li>
-                        <li>Discord: <a href="/discord" className="hover:underline">Join her</a></li>
+                        <li>
+                            E-mail:{" "}
+                            <a href="mailto:support@tradingtracker.app" className="hover:underline">
+                                support@tradingtracker.app
+                            </a>
+                        </li>
+                        <li>
+                            Discord:{" "}
+                            <Link href="/discord" className="hover:underline">
+                                Join her
+                            </Link>
+                        </li>
                         <li>CVR: 12345678</li>
                     </ul>
                 </div>
@@ -40,9 +53,10 @@ export default function Footer() {
                 <div className="mx-auto max-w-6xl px-4 py-4 text-xs text-gray-400 flex flex-col sm:flex-row items-center justify-between">
                     <div>© {new Date().getFullYear()} Trading Tracker. Alle rettigheder forbeholdes.</div>
                     <div className="mt-2 sm:mt-0 space-x-4">
-                        <a href="/vilkår" className="hover:underline">Vilkår</a>
-                        <a href="/privatliv" className="hover:underline">Privatliv</a>
-                        <a href="/cookies" className="hover:underline">Cookies</a>
+                        {/* OBS: route er /vilkar (uden å) */}
+                        <Link href="/vilkar" className="hover:underline">Vilkår</Link>
+                        <Link href="/privatliv" className="hover:underline">Privatliv</Link>
+                        <Link href="/cookies" className="hover:underline">Cookies</Link>
                     </div>
                 </div>
             </div>

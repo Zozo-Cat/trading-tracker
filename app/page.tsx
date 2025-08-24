@@ -1,6 +1,7 @@
 // app/page.tsx
 import HeroCarousel from "./_components/HeroCarousel";
-import Features from "./_components/Features";
+// import Features from "./_components/Features"; // fjernet
+import PartnerSlider from "./_components/PartnerSlider";
 import TestimonialsSlider from "./_components/TestimonialsSlider";
 import BottomCTA from "./_components/BottomCTA";
 import LoginStatus from "@/app/_components/LoginStatus";
@@ -14,7 +15,7 @@ export default function Page() {
             {/* Resten af forsiden */}
             <main className="pb-20">
                 <HeroCarousel />
-                <Features />
+                <PartnerSlider />
                 <TestimonialsSlider />
                 <BottomCTA />
             </main>
