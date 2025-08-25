@@ -1,107 +1,189 @@
-// app/dashboard/page.tsx
 "use client";
 
-import { useMemo } from "react";
-import { useSession } from "next-auth/react";
-import MentorOverview, { type Mentee } from "../_components/MentorOverview";
-import QuickMessage from "../_components/QuickMessage";
-import SendTrade from "../_components/SendTrade";
+import React, { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import CustomizeLayoutModal from "./_components/CustomizeLayoutModal";
+import { WIDGETS, getWidgetMeta, COMPONENTS } from "./_components/widgetRegistry";
+
+const RGL = dynamic(
+    async () => {
+        const mod = await import("react-grid-layout");
+        return mod.WidthProvider(mod.default);
+    },
+    { ssr: false }
+);
+
+type GridItem = { i: string; x?: number; y?: number; w?: number; h?: number; static?: boolean };
+type GridLayoutT = Required<GridItem>[];
+
+const STORAGE_KEY = "tt_dash_layout_v2";
+
+// grid
+const GRID = {
+    cols: 12,
+    rowHeight: 86,
+    margin: [12, 12] as [number, number],
+    containerPadding: [6, 6] as [number, number],
+    isResizable: false,
+    isBounded: true,
+    draggableCancel: ".tt-no-drag",
+};
+
+// sikre tal + default
+const norm = (it: GridItem): Required<GridItem> => ({
+    i: it.i,
+    x: Number.isFinite(it.x as number) ? (it.x as number) : 0,
+    y: Number.isFinite(it.y as number) ? (it.y as number) : Infinity,
+    w: Number.isFinite(it.w as number) ? (it.w as number) : 3,
+    h: Number.isFinite(it.h as number) ? (it.h as number) : 1,
+    static: !!it.static,
+});
+
+/** Fjern trailing index og skilletegn + migrér gamle nøgle-navne til nye. */
+const LEGACY_MAP: Record<string, string> = {
+    // ældre navne vi så i billeder/kode
+    plan: "planScorecard",
+    scorecard: "planScorecard",
+    planAndScorecard: "planScorecard",
+    // hvis nogen gamle varianter forekommer
+    upcomingNews: "upcomingNews",
+    todaysTrades: "tradesToday",
+    unnamed: "unnamedTrades",
+};
+
+function normalizeBaseKey(id: string): string {
+    // fjern trailing index og skilletegn (…-1, …_2, …#3, …01)
+    const base = id.replace(/[-_#]*\d+$/g, "");
+    return LEGACY_MAP[base] ?? base;
+}
+
+function buildDefaultLayout(): GridLayoutT {
+    const items: GridLayoutT = [];
+    let x = 0;
+    let y = 0;
+    for (const w of WIDGETS) {
+        const [ww, hh] = w.size || [3, 1];
+        if (x + ww > GRID.cols) {
+            x = 0;
+            y += 2;
+        }
+        items.push(norm({ i: w.key + "1", x, y, w: ww, h: hh }));
+        x += ww;
+    }
+    return items;
+}
+
+function loadLayout(): GridLayoutT {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return buildDefaultLayout();
+        const parsed = JSON.parse(raw) as GridItem[];
+        if (!Array.isArray(parsed)) return buildDefaultLayout();
+
+        // migrér: ret basekeys + sørg for gyldige numre
+        const migrated = parsed.map((p, idx) => {
+            const item = norm(p);
+            const base = normalizeBaseKey(item.i);
+            // hvis base ikke findes i registret, lad den være (så man kan se “Ukendt…”)
+            const meta = getWidgetMeta(base);
+            const fixedId = meta ? `${base}${(item.i.match(/\d+$/)?.[0] ?? "1")}` : item.i;
+            return { ...item, i: fixedId };
+        });
+
+        return migrated.map(norm);
+    } catch {
+        return buildDefaultLayout();
+    }
+}
+
+function saveLayout(layout: GridLayoutT) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
+}
 
 export default function DashboardPage() {
-    const { data: session } = useSession();
-    const user = session?.user;
-    const gold = "#D4AF37";
+    const [layout, setLayout] = useState<GridLayoutT>([]);
+    const [mounted, setMounted] = useState(false);
+    const [showCustomize, setShowCustomize] = useState(false);
 
-    const winrate = 74;
-    const challengeProgress = 63;
-    const tradingPlanAdherence = 85;
+    useEffect(() => {
+        setMounted(true);
+        setLayout(loadLayout());
+    }, []);
 
-    const statCards = useMemo(
-        () => [
-            { title: "Winrate", value: `${winrate}%`, chartColor: gold, extra: ["Bedste par: EURUSD", "GBPUSD", "USDJPY"] },
-            { title: "Challenge progress", value: `${challengeProgress}%`, chartColor: gold, extra: ["Challenge: 5% i 30 dage"] },
-            { title: "Tradingplan overholdelse", value: `${tradingPlanAdherence}%`, chartColor: gold, extra: ["Følg SL", "Risk max 2%", "Ingen revenge trading"] },
-        ],
-        [winrate, challengeProgress, tradingPlanAdherence]
-    );
+    useEffect(() => {
+        if (!mounted) return;
+        saveLayout(layout);
+    }, [layout, mounted]);
 
-    const DEMO_MENTEES: Mentee[] = [
-        { id: "m4", name: "Signe K.", winRate: 91, tradingPlan: ["Kun A-setup", "Risk 0.5%"] },
-        { id: "m1", name: "Amalie N.", winRate: 86, tradingPlan: ["Tag profit ved TP1", "Ingen news-trades"] },
-        { id: "m7", name: "Eva D.", winRate: 82, tradingPlan: ["Nyheder = sidelinjen"] },
-        { id: "m3", name: "Lars Ø.", winRate: 72, tradingPlan: ["Kun London session", "BE efter 1R"] },
-        { id: "m6", name: "Oliver S.", winRate: 64, tradingPlan: ["Breakout kun på H1"] },
-        { id: "m5", name: "Noah B.", winRate: 49, tradingPlan: ["Ingen revenge trades"] },
-        { id: "m2", name: "Jonas P.", winRate: 43, tradingPlan: ["Max 2 samtidige trades"] },
-    ];
+    function resetLayout() {
+        const d = buildDefaultLayout();
+        setLayout(d);
+    }
 
-    const fromUser: Mentee[] = Array.isArray((user as any)?.mentees)
-        ? (user as any).mentees.map((m: any) => {
-            const raw =
-                typeof m.winRate === "number"
-                    ? m.winRate
-                    : typeof m.winrate === "number"
-                        ? m.winrate
-                        : typeof m.performance === "number"
-                            ? m.performance
-                            : 0;
-            const winRate = Math.max(0, Math.min(100, Number(raw) || 0));
-            const tradingPlan = Array.isArray(m?.plan?.checklist) ? m.plan.checklist.map((c: any) => c.label) : [];
-            return { id: m.id, name: m.name, winRate, tradingPlan } as Mentee;
-        })
-        : [];
-
-    const validUserMentees = fromUser.filter((m) => (m.winRate ?? 0) > 0);
-    const mentees: Mentee[] = validUserMentees.length > 0 ? validUserMentees : DEMO_MENTEES;
-
-    const handleSendTrade = (payload: any) => {
-        try {
-            const uid = (user?.id || "anon") as string;
-            const KEY = `tt_signals_${uid}`;
-            const now = new Date().toISOString();
-            const existing = JSON.parse(localStorage.getItem(KEY) || "[]");
-            const arr = Array.isArray(existing) ? existing : [];
-            const newSignal = {
-                id: `sig-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`,
-                type: String(payload?.type || "BUY NOW").toUpperCase(),
-                symbol: String(payload?.symbol || "").toUpperCase(),
-                entry: payload?.entry != null ? Number(payload.entry) : null,
-                stop: payload?.stop != null ? Number(payload.stop) : null,
-                tps: Array.isArray(payload?.tps)
-                    ? payload.tps.map((p: any, i: number) => ({ id: `tp-${Date.now()}-${i}`, price: p }))
-                    : [{ id: `tp-${Date.now()}`, price: null }],
-                traderTag: user?.name || "Ukendt",
-                strategyTag: payload?.strategy || "Dashboard",
-                includeTrader: true,
-                includeStrategy: true,
-                channels: ["ch-signals"],
-                note: payload?.note || "",
-                useEmojiDecorations: true,
-                createdAt: now,
-                updatedAt: now,
-                status: "ACTIVE",
-                history: [{ at: now, message: "Signal sendt (fra Dashboard)" }],
-            };
-            localStorage.setItem(KEY, JSON.stringify([newSignal, ...arr].slice(0, 200)));
-        } catch (e) {
-            console.error("[SEND TRADE] failed:", e);
-        }
-    };
+    if (!mounted) {
+        return <main className="p-6 text-neutral-300">Indlæser…</main>;
+    }
 
     return (
-        <div className="p-4 space-y-6">
-            {/* Stat cards */}
-            {/* … behold resten af rendering uændret … */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-neutral-900 rounded-xl p-4">
-                    <h2 className="text-lg font-semibold text-white mb-2">Hurtig besked</h2>
-                    <QuickMessage />
-                </div>
-                <div className="bg-neutral-900 rounded-xl p-4">
-                    <h2 className="text-lg font-semibold text-white mb-2">Send trade</h2>
-                    <SendTrade onSend={handleSendTrade} />
-                </div>
+        <main className="p-4">
+            <div className="mb-3 flex items-center justify-end gap-2">
+                <button
+                    className="px-3 py-1.5 rounded border border-neutral-700 text-sm hover:bg-white/5"
+                    onClick={resetLayout}
+                >
+                    Gendan layout
+                </button>
+                <button
+                    className="px-3 py-1.5 rounded border border-neutral-700 text-sm hover:bg-white/5"
+                    onClick={() => setShowCustomize(true)}
+                >
+                    Tilpas layout
+                </button>
             </div>
-        </div>
+
+            <div className="rounded-xl border border-neutral-800 bg-[#111] p-2">
+                {/* @ts-ignore */}
+                <RGL
+                    cols={GRID.cols}
+                    rowHeight={GRID.rowHeight}
+                    margin={GRID.margin}
+                    containerPadding={GRID.containerPadding}
+                    isResizable={GRID.isResizable}
+                    isBounded={GRID.isBounded}
+                    draggableCancel={GRID.draggableCancel}
+                    layout={layout.map(norm)}
+                    onLayoutChange={(next: GridItem[]) => setLayout(next.map(norm))}
+                >
+                    {layout.map((raw) => {
+                        const item = norm(raw);
+                        const baseKey = normalizeBaseKey(item.i);
+                        const Cmp = COMPONENTS[baseKey];
+                        const meta = getWidgetMeta(baseKey);
+
+                        return (
+                            <div key={item.i} data-grid={item} className="rounded-lg overflow-hidden">
+                                {Cmp ? (
+                                    <Cmp />
+                                ) : (
+                                    <div className="h-full flex items-center justify-center text-neutral-400 border border-neutral-800 rounded-lg">
+                                        Ukendt widget: {baseKey}
+                                        {meta ? ` (${meta.title})` : null}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </RGL>
+            </div>
+
+            {showCustomize && (
+                <CustomizeLayoutModal
+                    onClose={() => {
+                        setShowCustomize(false);
+                        setLayout(loadLayout());
+                    }}
+                />
+            )}
+        </main>
     );
 }
