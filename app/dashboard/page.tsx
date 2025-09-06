@@ -8,6 +8,7 @@ import "react-resizable/css/styles.css";
 import WidgetChrome from "./_components/WidgetChrome";
 import { widgetSizes, WidgetSlug } from "./_components/widgetSizes";
 import { getWidgetSpec } from "./_components/widgetRegistry";
+import CustomizeLayoutModal from "./_components/CustomizeLayoutModal";
 
 const RGL = WidthProvider(GridLayout);
 
@@ -107,12 +108,16 @@ function saveToLocalStorage(
 }
 
 export default function DashboardPage() {
-    const [editMode, setEditMode] = useState(false);
+    // Live state (vises på dashboardet)
     const [{ instances, layout }, setState] = useState<{
         instances: WidgetInstance[];
         layout: Layout[];
     }>({ instances: [], layout: [] });
 
+    // Modal open/close
+    const [customizeOpen, setCustomizeOpen] = useState(false);
+
+    // throttle gemning
     const saveTimer = useRef<number | null>(null);
     const scheduleSave = (nextInstances: WidgetInstance[], nextLayout: Layout[]) => {
         if (saveTimer.current) window.clearTimeout(saveTimer.current);
@@ -122,6 +127,7 @@ export default function DashboardPage() {
         }, 400);
     };
 
+    // initial load/seed
     useEffect(() => {
         const loaded = loadFromLocalStorage();
         if (loaded) {
@@ -133,6 +139,7 @@ export default function DashboardPage() {
         }
     }, []);
 
+    // layout change handler (live) — drag/resize er deaktiveret i live-grid
     const handleLayoutChange = (nextLayout: Layout[]) => {
         setState((prev) => {
             const next = { instances: prev.instances, layout: nextLayout };
@@ -141,6 +148,7 @@ export default function DashboardPage() {
         });
     };
 
+    // Remove widget (live)
     const removeWidget = (id: string) => {
         setState((prev) => {
             const nextInstances = prev.instances.filter((w) => w.id !== id);
@@ -150,6 +158,7 @@ export default function DashboardPage() {
         });
     };
 
+    // Toggle lock (static) (live)
     const toggleLock = (id: string) => {
         setState((prev) => {
             const nextLayout = prev.layout.map((l) =>
@@ -160,12 +169,14 @@ export default function DashboardPage() {
         });
     };
 
+    // Nulstil layout (live)
     const resetLayout = () => {
         const seeded = seedDefault();
         setState(seeded);
         saveToLocalStorage(seeded.instances, seeded.layout);
     };
 
+    // Map for hurtig opslag
     const instanceById = useMemo(() => {
         const m = new Map<string, WidgetInstance>();
         for (const w of instances) m.set(w.id, w);
@@ -180,14 +191,11 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-2">
                     <button
                         type="button"
-                        onClick={() => setEditMode((v) => !v)}
-                        className={`px-3 py-1.5 rounded-md text-sm border transition
-              ${editMode
-                            ? "border-amber-400 text-amber-300 bg-amber-500/10"
-                            : "border-neutral-600 text-neutral-200 hover:bg-neutral-800"}`}
-                        title={editMode ? "Afslut tilpasning" : "Tilpas layout"}
+                        onClick={() => setCustomizeOpen(true)}
+                        className="px-3 py-1.5 rounded-md text-sm border border-neutral-600 text-neutral-200 hover:bg-neutral-800 transition"
+                        title="Tilpas layout"
                     >
-                        {editMode ? "✔ Afslut tilpasning" : "Tilpas layout"}
+                        Tilpas layout
                     </button>
 
                     <button
@@ -201,25 +209,24 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {!editMode && (
-                <div className="mb-3 text-xs text-neutral-400">
-                    Layout er låst. Klik <span className="text-neutral-200">Tilpas layout</span> for at flytte/resize widgets.
-                </div>
-            )}
+            {/* Hint: live-grid er altid låst */}
+            <div className="mb-3 text-xs text-neutral-400">
+                Layout er låst. Klik <span className="text-neutral-200">Tilpas layout</span> for at ændre widget-placering.
+            </div>
 
             <div className="mx-auto w-full max-w-7xl">
                 <RGL
                     className="layout"
                     layout={layout}
                     cols={12}
-                    rowHeight={72}               /* tightened from 86 -> 72 */
-                    margin={[10, 10]}            /* tightened from [12,12] -> [10,10] */
+                    rowHeight={72}
+                    margin={[10, 10]}
                     compactType={null}
                     preventCollision={true}
                     isBounded={false}
                     onLayoutChange={handleLayoutChange}
-                    isDraggable={editMode}
-                    isResizable={editMode}
+                    isDraggable={false}                  /* Live-grid: altid låst */
+                    isResizable={false}                  /* Live-grid: altid låst */
                     draggableHandle=".tt-widget-header"
                     draggableCancel="button, a, input, textarea, select"
                 >
@@ -244,6 +251,16 @@ export default function DashboardPage() {
                     })}
                 </RGL>
             </div>
+
+            {/* Customize modal (UI shell, ingen gem-logik endnu) */}
+            <CustomizeLayoutModal
+                open={customizeOpen}
+                onClose={() => setCustomizeOpen(false)}
+                onSave={() => {
+                    // Næste step: vi kopierer staged -> live og gemmer til LS.
+                    setCustomizeOpen(false);
+                }}
+            />
         </div>
     );
 }
