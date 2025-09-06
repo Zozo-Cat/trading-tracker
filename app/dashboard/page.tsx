@@ -183,6 +183,16 @@ export default function DashboardPage() {
         return m;
     }, [instances]);
 
+    // Når modal trykker "Færdig" → apply staged → live
+    const handleCustomizeSave = (
+        stagedInstances: WidgetInstance[],
+        stagedLayout: Layout[]
+    ) => {
+        setState({ instances: stagedInstances, layout: stagedLayout });
+        saveToLocalStorage(stagedInstances, stagedLayout);
+        setCustomizeOpen(false);
+    };
+
     return (
         <div className="tt-dashboard min-h-screen p-4">
             {/* Toolbar */}
@@ -225,8 +235,8 @@ export default function DashboardPage() {
                     preventCollision={true}
                     isBounded={false}
                     onLayoutChange={handleLayoutChange}
-                    isDraggable={false}                  /* Live-grid: altid låst */
-                    isResizable={false}                  /* Live-grid: altid låst */
+                    isDraggable={false}
+                    isResizable={false}
                     draggableHandle=".tt-widget-header"
                     draggableCancel="button, a, input, textarea, select"
                 >
@@ -252,14 +262,11 @@ export default function DashboardPage() {
                 </RGL>
             </div>
 
-            {/* Customize modal (UI shell, ingen gem-logik endnu) */}
+            {/* Customize modal */}
             <CustomizeLayoutModal
                 open={customizeOpen}
                 onClose={() => setCustomizeOpen(false)}
-                onSave={() => {
-                    // Næste step: vi kopierer staged -> live og gemmer til LS.
-                    setCustomizeOpen(false);
-                }}
+                onSave={(instances, layout) => handleCustomizeSave(instances, layout)}
             />
         </div>
     );
