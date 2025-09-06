@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import GridLayout, { Layout } from "react-grid-layout";
+import GridLayout, { Layout, WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
 import WidgetChrome from "./_components/WidgetChrome";
 import { widgetSizes, WidgetSlug } from "./_components/widgetSizes";
-import { widgetRegistry, getWidgetSpec } from "./_components/widgetRegistry";
+import { getWidgetSpec } from "./_components/widgetRegistry";
+
+const RGL = WidthProvider(GridLayout);
 
 // === LocalStorage keys (versioneret) ===
 const LS_VERSION = "2";
@@ -28,29 +30,23 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 
 // Seed: Default dashboard (Free)
 function seedDefault(): { instances: WidgetInstance[]; layout: Layout[] } {
-    // rækkefølge + koordinater (x,y) i kolonner (12 cols total)
-    // hentes størrelser fra widgetSizes; y måles i "grid rows"
     const plan: Array<{ slug: WidgetSlug; x: number; y: number }> = [
-        // Personligt & Stats første række
-        { slug: "welcome", x: 0, y: 0 },           // 4x2
-        { slug: "successRate", x: 4, y: 0 },       // 2x2
-        { slug: "profitLoss", x: 6, y: 0 },        // 2x2
-        { slug: "tradesCount", x: 8, y: 0 },       // 2x2
-        { slug: "riskReward", x: 10, y: 0 },       // 2x2 (wraps next row if overflow; but 12 cols -> last starts at 10 ok)
+        { slug: "welcome", x: 0, y: 0 },
+        { slug: "successRate", x: 4, y: 0 },
+        { slug: "profitLoss", x: 6, y: 0 },
+        { slug: "tradesCount", x: 8, y: 0 },
+        { slug: "riskReward", x: 10, y: 0 },
 
-        // Anden række
-        { slug: "drawdown", x: 0, y: 2 },          // 3x2
-        { slug: "accountGrowth", x: 3, y: 2 },     // 2x2
-        { slug: "streaks", x: 5, y: 2 },           // 3x2
-        { slug: "sessionPerformance", x: 8, y: 2 },// 4x2
+        { slug: "drawdown", x: 0, y: 2 },
+        { slug: "accountGrowth", x: 3, y: 2 },
+        { slug: "streaks", x: 5, y: 2 },
+        { slug: "sessionPerformance", x: 8, y: 2 },
 
-        // Tredje række (brede 1-rækkere)
-        { slug: "todaysTrades", x: 0, y: 4 },      // 4x1
-        { slug: "newsList", x: 4, y: 4 },          // 4x1
-        { slug: "upcomingNews", x: 8, y: 4 },      // 4x1
+        { slug: "todaysTrades", x: 0, y: 4 },
+        { slug: "newsList", x: 4, y: 4 },
+        { slug: "upcomingNews", x: 8, y: 4 },
 
-        // Fjerde række
-        { slug: "tradingGoals", x: 0, y: 5 },      // 6x1
+        { slug: "tradingGoals", x: 0, y: 5 },
     ];
 
     const instances: WidgetInstance[] = [];
@@ -91,7 +87,6 @@ function loadFromLocalStorage():
 
         if (!Array.isArray(instances) || !Array.isArray(layout)) return null;
 
-        // Minimal sanity: alle layout items skal have en matching instance
         const ids = new Set(instances.map((w) => w.id));
         if (!layout.every((l) => ids.has(l.i))) return null;
 
@@ -118,7 +113,6 @@ export default function DashboardPage() {
         layout: Layout[];
     }>({ instances: [], layout: [] });
 
-    // throttle gemning
     const saveTimer = useRef<number | null>(null);
     const scheduleSave = (nextInstances: WidgetInstance[], nextLayout: Layout[]) => {
         if (saveTimer.current) window.clearTimeout(saveTimer.current);
@@ -128,7 +122,6 @@ export default function DashboardPage() {
         }, 400);
     };
 
-    // initial load/seed
     useEffect(() => {
         const loaded = loadFromLocalStorage();
         if (loaded) {
@@ -140,7 +133,6 @@ export default function DashboardPage() {
         }
     }, []);
 
-    // layout change handler
     const handleLayoutChange = (nextLayout: Layout[]) => {
         setState((prev) => {
             const next = { instances: prev.instances, layout: nextLayout };
@@ -149,7 +141,6 @@ export default function DashboardPage() {
         });
     };
 
-    // Remove widget
     const removeWidget = (id: string) => {
         setState((prev) => {
             const nextInstances = prev.instances.filter((w) => w.id !== id);
@@ -159,7 +150,6 @@ export default function DashboardPage() {
         });
     };
 
-    // Toggle lock (static) på et layout item
     const toggleLock = (id: string) => {
         setState((prev) => {
             const nextLayout = prev.layout.map((l) =>
@@ -170,14 +160,12 @@ export default function DashboardPage() {
         });
     };
 
-    // Nulstil layout
     const resetLayout = () => {
         const seeded = seedDefault();
         setState(seeded);
         saveToLocalStorage(seeded.instances, seeded.layout);
     };
 
-    // Map for hurtig opslag
     const instanceById = useMemo(() => {
         const m = new Map<string, WidgetInstance>();
         for (const w of instances) m.set(w.id, w);
@@ -213,50 +201,49 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* Hint når låst */}
             {!editMode && (
                 <div className="mb-3 text-xs text-neutral-400">
                     Layout er låst. Klik <span className="text-neutral-200">Tilpas layout</span> for at flytte/resize widgets.
                 </div>
             )}
 
-            <GridLayout
-                className="layout"
-                layout={layout}
-                cols={12}
-                rowHeight={86}
-                width={1200}
-                margin={[12, 12]}
-                compactType={null}
-                preventCollision={true}
-                isBounded={false}
-                onLayoutChange={handleLayoutChange}
-                isDraggable={editMode}
-                isResizable={editMode}
-                draggableHandle=".tt-widget-header"
-                draggableCancel="button, a, input, textarea, select"
-            >
-                {layout.map((l) => {
-                    const inst = instanceById.get(l.i);
-                    const slug = inst?.slug ?? "filler";
-                    const spec = getWidgetSpec(slug);
+            <div className="mx-auto w-full max-w-7xl">
+                <RGL
+                    className="layout"
+                    layout={layout}
+                    cols={12}
+                    rowHeight={72}               /* tightened from 86 -> 72 */
+                    margin={[10, 10]}            /* tightened from [12,12] -> [10,10] */
+                    compactType={null}
+                    preventCollision={true}
+                    isBounded={false}
+                    onLayoutChange={handleLayoutChange}
+                    isDraggable={editMode}
+                    isResizable={editMode}
+                    draggableHandle=".tt-widget-header"
+                    draggableCancel="button, a, input, textarea, select"
+                >
+                    {layout.map((l) => {
+                        const inst = instanceById.get(l.i);
+                        const slug = inst?.slug ?? "filler";
+                        const spec = getWidgetSpec(slug);
 
-                    return (
-                        <div key={l.i}>
-                            <WidgetChrome
-                                title={spec.title}
-                                helpText={spec.description}
-                                isLocked={!!l.static}
-                                onRemove={() => removeWidget(l.i)}
-                                onToggleLock={() => toggleLock(l.i)}
-                            >
-                                {/* Indholdet fra widgetten (placeholder for nu) */}
-                                {spec.component({ instanceId: l.i })}
-                            </WidgetChrome>
-                        </div>
-                    );
-                })}
-            </GridLayout>
+                        return (
+                            <div key={l.i}>
+                                <WidgetChrome
+                                    title={spec.title}
+                                    helpText={spec.description}
+                                    isLocked={!!l.static}
+                                    onRemove={() => removeWidget(l.i)}
+                                    onToggleLock={() => toggleLock(l.i)}
+                                >
+                                    {spec.component({ instanceId: l.i })}
+                                </WidgetChrome>
+                            </div>
+                        );
+                    })}
+                </RGL>
+            </div>
         </div>
     );
 }
