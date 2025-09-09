@@ -1,132 +1,186 @@
 # Trading Tracker — PROJECT_MAP.md
 
-> **Formål:** Hurtigt overblik til dig (og nye chats/medhjælpere) over hvor ting bor, hvordan auth/Discord-data hentes, og hvad der er klar til test vs. TODO. Brug dette dokument når du åbner en ny chat: copy/paste hele filen først.
+> **Formål:** Hurtigt overblik til dig (og nye hjælpere) over struktur, auth, miljøvariabler, og hvad der er klar vs. TODO.  
+> Brug dette dokument, når du åbner en ny chat: link/indsæt filen først.
 
 ---
 
-## 0) Struktur (vigtigste mapper)
+## 0) Beslutninger (kort)
+- **Auth:** Vi bruger **Supabase Auth** til alt (Email + Discord).
+    - **NextAuth er fjernet** (ruter, config, adapters).
+    - Discord OAuth er slået til i Supabase med redirect **`/auth/v1/callback`**.
+- **DB:** Supabase (Postgres). Prisma bruges til vores egne tabeller (fx `Server`, `Team` …).
+- **App Router:** Next.js `app/` struktur.
+- **Mål:** Alle brugere (email + Discord) skal ses i **Supabase → Authentication → Users**.
+
+---
+
+## 1) Mappestruktur (nøglefiler)
 
 app/
-_components/
-CommunityPicker.tsx
-Header.tsx ← NextAuth-baseret header (ikke dummy)
-MentorOverview.tsx
-QuickMessage.tsx
-SendTrade.tsx
-dashboard/page.tsx ← Klar (NextAuth)
-dev/login/page.tsx ← Klar (NextAuth, viser session JSON)
-mentees/page.tsx ← Klar (NextAuth) + DUMMY fallback
-signals/page.tsx ← Klar (NextAuth) + admin gate
-config/… ← (tjek efter dummy, se To-Do)
+login/page.tsx ← UI bruger Supabase (Email + Discord)
+dashboard/page.tsx ← kræver login (beskyttet af middleware)
+servers/page.tsx ← henter Discord guilds via Discord OAuth token
+servers/registered/page.tsx ← viser gemte servere (DB) pr. Discord ID
+api/
+discord/
+channels/route.ts ← Supabase session ✅
+guilds/route.ts ← Supabase session ✅
+roles/route.ts ← Supabase session ✅
+test-send/route.ts ← Supabase session ✅
+servers/
+register/route.ts ← Supabase session + Prisma ✅
+teams/
+route.ts ← GET/POST Supabase session + Admin client ✅
+join/route.ts ← Supabase session + RPC ✅
+[id]/my-role/route.ts ← Supabase session + Admin client ✅
+whoami/route.ts ← Supabase session ✅
 
 lib/
-auth.ts ← NextAuth konfiguration + admin-rolle
-discord.ts ← (fælles datalag til Discord – planlagt/under indførsel)
-supabaseClient.ts ← Supabase client
-supabaseAdmin.ts ← (server-side hvis brugt)
-configStore.ts ← Lokal state (hvis i brug)
-dummyAuth.tsx ← (midlertidig shim – bør fjernes, se To-Do)
+supabaseClient.ts ← public klient
+supabaseAdmin.ts ← server-side (service role) klient
+db.ts ← Prisma klient
 
-public/images/
-trading.png ← Logo i Header
-
-app/api/
-discord/
-guilds/route.ts
-bot-memberships/route.ts
-channels/route.ts
-roles/route.ts
-test-send/route.ts
-mentees/route.ts ← (foreslået endpoint til rigtige mentees — TODO når klar)
+middleware.ts ← Beskytter /dashboard/* → uloggede sendes til /login
 
 markdown
-Kopiér
-Rediger
+Copy code
+
+> **Slettet:**  
+> `app/api/auth/[...nextauth]/route.ts`, `lib/auth.ts` (og øvrige NextAuth-imports).
 
 ---
 
-## 1) Auth (NextAuth + Discord)
+## 2) Auth (Supabase)
+- **Login-side** (`/login`):
+    - Email + password: `supabase.auth.signInWithPassword()`
+    - Sign up: `supabase.auth.signUp()`
+    - Discord: `supabase.auth.signInWithOAuth({ provider: "discord", options: { redirectTo: <origin>/dashboard }})`
+- **Session (client):** `@supabase/auth-helpers-react` → `useSession()`
+- **Session (server):** `@supabase/auth-helpers-nextjs` → `createServerComponentClient({ cookies })`
+- **Discord data i session:**
+    - User metadata: `session.user.user_metadata`
+        - `provider`: `"discord"`
+        - `provider_id`: `<discord snowflake>` (bruges som `discordUserId`)
+    - OAuth access token: `session.provider_token` (bruges til `/users/@me/guilds`)
 
-- **Fil:** `lib/auth.ts`
-- **Nøglepunkter:**
-    - Gemmer `discordAccessToken`, `discordUserId`, `discordId` (snowflake) i token/session.
-    - Admin-allowlist via ENV → `session.user.role = "admin"` + sætter `isTeamLead`, `isCommunityLead`, `isPro` = `true` for admin.
-- **ENV (lokalt & prod):**
-  ```env
-  DISCORD_CLIENT_ID=...
-  DISCORD_CLIENT_SECRET=...
-  ADMIN_DISCORD_IDS=701105379311878174     # din snowflake (komma-separeret liste)
-  ADMIN_EMAILS=serenitygamingsrg@gmail.com # valgfrit fallback (komma-separeret)
-  NEXTAUTH_URL=http://localhost:3000       # Vercel sætter selv i prod
-  NEXTAUTH_SECRET=...                      # kør: openssl rand -base64 32
-Provider-lag: app/_components/Providers.tsx bruger kun SessionProvider.
-
-Test: /dev/login skal vise user.role = "admin" og flags isTeamLead/isCommunityLead/isPro = true for dig.
-
-2) Header og globale krav
-   Fil: app/_components/Header.tsx (layout bevaret; auth via useSession).
-
-Billeder: Discord-avatar loader via <img> for at undgå Next/Image-domænekrav.
-
-(Anbefalet) Tilføj senere i next.config.js:
-
-js
-Kopiér
-Rediger
-module.exports = {
-images: { domains: ["cdn.discordapp.com", "media.discordapp.net"] },
-};
-3) Sider
-   Dashboard: app/dashboard/page.tsx ✅
-
-Mentees: app/mentees/page.tsx (dummy fallback, Supabase senere) ✅
-
-Signals (admin): app/signals/page.tsx ✅
-
-Dev / Login: app/dev/login/page.tsx ✅
-
-Config/Teams: mangler oprydning i dummy-auth ❌
-
-4) Discord data — fælles datalag (mål)
-   Fil: lib/discord.ts
-
-Funktioner: getUserGuilds, getBotMemberships, getGuildChannels, getGuildRoles, filterInstalled.
-
-5) API-routes
-   Placering: app/api/discord/*
-
-Channels, roles, guilds, bot-memberships, test-send.
-
-Ekstra endpoint: app/api/mentees/route.ts (TODO til Supabase).
-
-6) Deploy til Vercel
-   Push til GitHub.
-
-Importér repo i Vercel.
-
-Opsæt ENV i Vercel.
-
-Test /dev/login, /dashboard, /mentees, /signals.
-
-7) Kendte TODOs
-   Fjerne dummyAuth.tsx.
-
-Implementere api/mentees til Supabase.
-
-Oprydning i config-sektioner.
-
-8) Noter
-   Dummy-data bevidst bevaret for pæn demo.
-
-Admin får altid fulde flags.
-
-Start ny chat med at copy/paste denne fil.
-
-yaml
-Kopiér
-Rediger
+**Discord scopes:** I Supabase → Auth → Providers → Discord → Scopes:  
+`identify email guilds` (for at hente brugerens guilds)
 
 ---
 
-### 📁 Fil 2 — **`RECOVERY_NOTES.md`**
-**Sti:**  
+## 3) Routing & Redirects
+- **/dashboard**: beskyttes af `middleware.ts`.
+    - Uden login → redirect til **/login?callbackUrl=...**
+- **Efter login:** knapper/flow redirecter til **/dashboard**.
+- (Valgfrit) Root → /dashboard for loggede brugere kan tilføjes senere hvis ønsket.
+
+---
+
+## 4) API-routes (konverteret til Supabase)
+- `/api/discord/channels` ✅
+- `/api/discord/guilds` ✅
+- `/api/discord/roles` ✅
+- `/api/discord/test-send` ✅
+- `/api/servers/register` ✅
+- `/api/teams` (GET/POST) ✅
+- `/api/teams/join` ✅
+- `/api/teams/[id]/my-role` ✅
+- `/api/whoami` ✅
+
+**Fælles mønster:**
+```ts
+import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+
+const supabase = createRouteHandlerClient({ cookies });
+const { data: { session } } = await supabase.auth.getSession();
+if (!session) return new Response("Unauthorized", { status: 401 });
+5) DB-felter (Discord)
+Vi bruger Discord ID fra session.user.user_metadata.provider_id som discordUserId.
+
+Tabeller der refererer Discord ID i jeres Prisma-model:
+
+Server.ownerDiscordId, ServerMembership.userDiscordId, osv.
+
+Email-only brugere har ikke et Discord ID → vis hjælpetekst om at logge ind med Discord for de features, der kræver det.
+
+6) Miljøvariabler (lokalt + Vercel)
+Supabase (public):
+
+ini
+Copy code
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+Supabase (server/admin):
+
+ini
+Copy code
+SUPABASE_SERVICE_ROLE_KEY=...   # bruges i supabaseAdmin (server-side only)
+Discord (OAuth via Supabase):
+
+ini
+Copy code
+DISCORD_CLIENT_ID=...
+DISCORD_CLIENT_SECRET=...
+Discord Bot (valgfri – til bot-kald):
+
+ini
+Copy code
+DISCORD_BOT_TOKEN=...
+Fjern gamle NextAuth-vars (NEXTAUTH_*, @next-auth/prisma-adapter, nodemailer) hvis de stadig ligger i projektet.
+
+7) Testtjekliste
+/login:
+
+Email + password → lander på /dashboard
+
+“Login med Discord” → Discord consent → lander på /dashboard
+
+/api/whoami:
+
+Uden login → { "session": null }
+
+Med login → { "session": { user: ... } }
+
+/servers:
+
+Viser kun guilds, hvor botten også er medlem
+
+Hvis tom: check bot-token og guilds-scope
+
+/servers/registered:
+
+Viser servere for din discordUserId (metadata provider_id)
+
+Middleware:
+
+Gå til /dashboard uden login → sendes til /login
+
+8) Backlog (senere)
+Glemt kodeord (reset flow via resetPasswordForEmail + /reset-password UI)
+
+Oprydning: slet evt. resterende imports af next-auth (skal være 0 resultater)
+
+Evt. støtte “teams/servers” for email-only brugere (uden Discord)
+
+Centraliser Discord-helpers i lib/discord.ts (getUserGuilds, getGuildRoles, …)
+
+9) Change-log (denne migration)
+Fjernet NextAuth-rute og lib/auth.ts
+
+Opdateret middleware til Supabase session
+
+Konverteret alle app/api/* routes til Supabase session
+
+Opdateret /servers til at bruge session.provider_token for Discord API
+
+Opdateret /servers/registered til at bruge user_metadata.provider_id
+
+/login bruger nu Supabase (email/password + Discord OAuth)
+
+markdown
+Copy code
+
+Hvis du vil, kan jeg også lægge **logout-knap** (Supabase `auth.signOut()`) ind i din header, så hele flowet er komplet.
+::contentReference[oaicite:0]{index=0}

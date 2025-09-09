@@ -1,10 +1,35 @@
 "use client";
 
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "@supabase/auth-helpers-react";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function LoginStatus() {
-    const { data: session, status } = useSession();
-    if (status === "loading") return null;
+    const router = useRouter();
+    const session = useSession(); // Supabase: Session | null
+
+    // Bevar "loading"-adfærd (Supabase har ikke status-flag)
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => setMounted(true), []);
+    if (!mounted) return null;
+
+    const loginWithDiscord = async () => {
+        const origin = typeof window !== "undefined" ? window.location.origin : "";
+        await supabase.auth.signInWithOAuth({
+            provider: "discord",
+            options: { redirectTo: `${origin}/dashboard` },
+        });
+    };
+
+    const logout = async () => {
+        await supabase.auth.signOut();
+        router.refresh();
+    };
+
+    const user = session?.user as any | null;
+    const displayName =
+        user?.user_metadata?.full_name || user?.email || "Discord-bruger";
 
     return (
         <div
@@ -14,11 +39,11 @@ export default function LoginStatus() {
             {session ? (
                 <div className="flex items-center gap-3">
           <span style={{ color: "#D4AF37" }} className="text-sm">
-            Forbundet som {session.user?.name ?? "Discord‑bruger"}
+            Forbundet som {displayName}
           </span>
                     <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#76ed77" }} />
                     <button
-                        onClick={() => signOut()}
+                        onClick={logout}
                         className="px-2 py-1 rounded-md text-black text-sm font-medium"
                         style={{ backgroundColor: "#f0e68c" }}
                     >
@@ -30,7 +55,7 @@ export default function LoginStatus() {
                     <span style={{ color: "#D4AF37" }} className="text-sm">Ikke forbundet</span>
                     <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#e67e22" }} />
                     <button
-                        onClick={() => signIn("discord")}
+                        onClick={loginWithDiscord}
                         className="px-2 py-1 rounded-md text-black text-sm font-medium"
                         style={{ backgroundColor: "#5dade2" }}
                     >

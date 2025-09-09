@@ -4,9 +4,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSession, signOut } from "next-auth/react";
 import { Bell } from "lucide-react";
 import CommunityPicker from "@/app/_components/CommunityPicker";
+
+// ⬇️ Supabase hooks/klient + router til logout-redirect
+import { useSession } from "@supabase/auth-helpers-react";
+import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
 
 type Notif = {
     id: string;
@@ -20,8 +24,9 @@ function isNotifArray(val: any): val is Notif[] {
 }
 
 export default function Header() {
-    const { data, status } = useSession();
-    const user = data?.user;
+    const router = useRouter();
+    const session = useSession();                 // Supabase session (null hvis ikke logget ind)
+    const user = (session?.user as any) || null;  // Beholder samme "user" variabel som før
 
     const [mounted, setMounted] = useState(false);
     useEffect(() => setMounted(true), []);
@@ -60,9 +65,7 @@ export default function Header() {
         const now = new Date();
         const ago = (mins: number) => new Date(now.getTime() - mins * 60 * 1000).toISOString();
         if (!user) return [];
-        return [
-            { id: "s1", title: "Velkommen til Trading Tracker 🚀", href: "/", createdAt: ago(1), read: false },
-        ];
+        return [{ id: "s1", title: "Velkommen til Trading Tracker 🚀", href: "/", createdAt: ago(1), read: false }];
     };
 
     const [notifs, setNotifs] = useState<Notif[]>([]);
@@ -81,28 +84,38 @@ export default function Header() {
         } catch {
             const seeded = seedForUser();
             setNotifs(seeded);
-            try { localStorage.setItem(LS_KEY!, JSON.stringify(seeded)); } catch {}
+            try {
+                localStorage.setItem(LS_KEY!, JSON.stringify(seeded));
+            } catch {}
         }
     };
-    useEffect(() => { if (mounted && LS_KEY) loadFromStorage(); }, [mounted, LS_KEY]);
+    useEffect(() => {
+        if (mounted && LS_KEY) loadFromStorage();
+    }, [mounted, LS_KEY]);
 
     const unreadCount = isNotifArray(notifs) ? notifs.reduce((acc, n) => acc + (n.read ? 0 : 1), 0) : 0;
     const markAllRead = () => setNotifs(arr => arr.map(n => ({ ...n, read: true })));
-    const markOneRead = (id: string) => setNotifs(arr => arr.map(n => n.id === id ? { ...n, read: true } : n));
+    const markOneRead = (id: string) => setNotifs(arr => arr.map(n => (n.id === id ? { ...n, read: true } : n)));
+
+    // ⬇️ Bevar præcis samme UI; kun logout-funktionen ændres til Supabase
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        router.push("/login");
+        router.refresh();
+    };
+
+    // Supabase Discord-avatar hvis den findes; ellers fallback til tidligere felt
+    const avatar =
+        (user?.user_metadata?.avatar_url as string | undefined) ??
+        (user?.image as string | undefined) ??
+        "/images/default-avatar.png";
 
     return (
         <header className="sticky top-0 z-50 border-b border-gray-700" style={{ backgroundColor: "#211d1d" }}>
             <div className="mx-auto max-w-7xl px-4 py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 {/* Logo */}
                 <Link href="/" className="flex items-center gap-3">
-                    <Image
-                        src="/images/trading.png"
-                        alt="Trading Tracker logo"
-                        width={150}
-                        height={150}
-                        priority
-                        className="-mt-1"
-                    />
+                    <Image src="/images/trading.png" alt="Trading Tracker logo" width={150} height={150} priority className="-mt-1" />
                 </Link>
 
                 <nav className="flex items-center gap-2 sm:gap-3 flex-wrap overflow-x-hidden">
@@ -111,26 +124,36 @@ export default function Header() {
                     ) : !user ? (
                         <>
                             {/* Nye links for ikke-loggede */}
-                            <Link href="/nyheder" className="px-3 py-2 rounded-md border text-sm"
-                                  style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
+                            <Link
+                                href="/nyheder"
+                                className="px-3 py-2 rounded-md border text-sm"
+                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
+                            >
                                 Nyheder
                             </Link>
-                            <Link href="/partnere" className="px-3 py-2 rounded-md border text-sm"
-                                  style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
+                            <Link
+                                href="/partnere"
+                                className="px-3 py-2 rounded-md border text-sm"
+                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
+                            >
                                 Partnere
                             </Link>
 
                             {/* Behold eksisterende info-links */}
-                            <Link href="/planer" className="px-3 py-2 rounded-md border text-sm"
-                                  style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
+                            <Link
+                                href="/planer"
+                                className="px-3 py-2 rounded-md border text-sm"
+                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
+                            >
                                 Planer og Priser
                             </Link>
-                            <Link href="/saadan-virker-det" className="px-3 py-2 rounded-md border text-sm"
-                                  style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
+                            <Link
+                                href="/saadan-virker-det"
+                                className="px-3 py-2 rounded-md border text-sm"
+                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
+                            >
                                 Sådan virker det
                             </Link>
-
-                            {/* Fjernet: Dev-linket */}
 
                             {/* Call-to-actions */}
                             <Link
@@ -144,17 +167,41 @@ export default function Header() {
                             <Link
                                 href="/signup"
                                 className="px-3 py-2 rounded-md text-black font-medium text-sm"
-                                style={{ backgroundColor: "#5dade2" }} // anden farve end "Log ind"
+                                style={{ backgroundColor: "#5dade2" }}
                             >
                                 Registrer dig
                             </Link>
                         </>
                     ) : (
                         <>
-                            <Link href="/trades" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>Mine trades</Link>
-                            <Link href="/teams" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>Mine teams</Link>
-                            <Link href="/statistik" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>Statistik</Link>
-                            <Link href="/opgrader" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>Opgrader</Link>
+                            <Link
+                                href="/trades"
+                                className="px-3 py-2 rounded-md border text-sm"
+                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
+                            >
+                                Mine trades
+                            </Link>
+                            <Link
+                                href="/teams"
+                                className="px-3 py-2 rounded-md border text-sm"
+                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
+                            >
+                                Mine teams
+                            </Link>
+                            <Link
+                                href="/statistik"
+                                className="px-3 py-2 rounded-md border text-sm"
+                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
+                            >
+                                Statistik
+                            </Link>
+                            <Link
+                                href="/opgrader"
+                                className="px-3 py-2 rounded-md border text-sm"
+                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
+                            >
+                                Opgrader
+                            </Link>
 
                             <div className="ml-1 mr-1">
                                 <CommunityPicker />
@@ -163,7 +210,10 @@ export default function Header() {
                             <div className="relative">
                                 <button
                                     ref={bellBtnRef}
-                                    onClick={() => { setOpen(o => !o); requestAnimationFrame(placeDropdown); }}
+                                    onClick={() => {
+                                        setOpen(o => !o);
+                                        requestAnimationFrame(placeDropdown);
+                                    }}
                                     className="relative rounded-full p-2 hover:bg-white/5"
                                     aria-label="Notifikationer"
                                     aria-expanded={open}
@@ -171,7 +221,10 @@ export default function Header() {
                                 >
                                     <Bell size={20} color="#D4AF37" />
                                     {unreadCount > 0 && (
-                                        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[11px] leading-[18px] text-black font-bold" style={{ backgroundColor: "#76ed77" }}>
+                                        <span
+                                            className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[11px] leading-[18px] text-black font-bold"
+                                            style={{ backgroundColor: "#76ed77" }}
+                                        >
                       {unreadCount}
                     </span>
                                     )}
@@ -179,10 +232,16 @@ export default function Header() {
                             </div>
 
                             <Link href="/min-side" className="flex items-center">
-                                <img src={user.image ?? "/images/default-avatar.png"} alt="Profil" width={36} height={36} className="rounded-full border border-gray-500" />
+                                <img
+                                    src={avatar}
+                                    alt="Profil"
+                                    width={36}
+                                    height={36}
+                                    className="rounded-full border border-gray-500"
+                                />
                             </Link>
                             <button
-                                onClick={() => signOut()}
+                                onClick={handleLogout}
                                 className="px-3 py-2 rounded-md text-white font-medium text-sm"
                                 style={{ backgroundColor: "#ff5757" }}
                             >
@@ -211,7 +270,9 @@ export default function Header() {
                     }}
                 >
                     <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: "#3b3838" }}>
-                        <span className="text-sm" style={{ color: "#D4AF37" }}>Notifikationer</span>
+            <span className="text-sm" style={{ color: "#D4AF37" }}>
+              Notifikationer
+            </span>
                         {unreadCount > 0 && (
                             <button
                                 type="button"
@@ -228,22 +289,30 @@ export default function Header() {
                             <div className="px-4 py-6 text-center text-sm text-gray-300">Ingen notifikationer</div>
                         ) : (
                             <ul className="divide-y" style={{ borderColor: "#3b3838" }}>
-                                {notifs.slice(0, 8).map((n) => {
+                                {notifs.slice(0, 8).map(n => {
                                     const body = (
                                         <div
                                             className="flex items-start gap-3 px-4 py-3 hover:bg-white/5 cursor-pointer"
-                                            onClick={(e) => { e.stopPropagation(); markOneRead(n.id); setOpen(false); }}
+                                            onClick={e => {
+                                                e.stopPropagation();
+                                                markOneRead(n.id);
+                                                setOpen(false);
+                                            }}
                                         >
-                                            {!n.read ? <span className="mt-1 inline-block w-2 h-2 rounded-full" style={{ background: "#D4AF37" }} /> : <span className="mt-1 inline-block w-2 h-2 rounded-full opacity-0" />}
+                                            {!n.read ? (
+                                                <span className="mt-1 inline-block w-2 h-2 rounded-full" style={{ background: "#D4AF37" }} />
+                                            ) : (
+                                                <span className="mt-1 inline-block w-2 h-2 rounded-full opacity-0" />
+                                            )}
                                             <div className="flex-1">
                                                 <div className="text-sm text-gray-100">{n.title}</div>
-                                                <div className="text-xs text-gray-400 mt-0.5">{new Date(n.createdAt).toLocaleString()}</div>
+                                                <div className="text-xs text-gray-400 mt-0.5">
+                                                    {new Date(n.createdAt).toLocaleString()}
+                                                </div>
                                             </div>
                                         </div>
                                     );
-                                    return (
-                                        <li key={n.id}>{n.href ? <Link href={n.href} className="block">{body}</Link> : body}</li>
-                                    );
+                                    return <li key={n.id}>{n.href ? <Link href={n.href} className="block">{body}</Link> : body}</li>;
                                 })}
                             </ul>
                         )}

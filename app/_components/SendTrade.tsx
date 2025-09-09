@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useDummySession } from "@/lib/dummyAuth";
+import { useSession } from "@supabase/auth-helpers-react";
 import {
     TRADING_EMOJIS,
     GENERAL_EMOJIS,
@@ -11,14 +11,7 @@ import {
 } from "@/app/_data/emojis";
 
 /* ===================== Typer ===================== */
-type SignalType =
-    | "BUY NOW"
-    | "SELL NOW"
-    | "BUY LIMIT"
-    | "SELL LIMIT"
-    | "BUY STOP"
-    | "SELL STOP";
-
+type SignalType = "BUY NOW" | "SELL NOW" | "BUY LIMIT" | "SELL LIMIT" | "BUY STOP" | "SELL STOP";
 type Channel = { id: string; name: string };
 type TpRow = { id: string; priceStr: string };
 
@@ -45,8 +38,20 @@ function uid(prefix = "id") {
 }
 
 const ALL_SYMBOLS = [
-    "EURUSD", "EURJPY", "EURGBP", "EURAUD", "GBPUSD", "USDJPY", "USDCAD", "AUDUSD",
-    "BTCUSD", "ETHUSD", "XAUUSD", "US30", "NAS100", "XRPUSD"
+    "EURUSD",
+    "EURJPY",
+    "EURGBP",
+    "EURAUD",
+    "GBPUSD",
+    "USDJPY",
+    "USDCAD",
+    "AUDUSD",
+    "BTCUSD",
+    "ETHUSD",
+    "XAUUSD",
+    "US30",
+    "NAS100",
+    "XRPUSD",
 ];
 
 const gold = "#D4AF37";
@@ -57,21 +62,21 @@ function pipSizeFor(symbol: string): number {
     const s = symbol.toUpperCase().trim();
 
     // Metals (typisk: 1 pip = 0.10 for XAU, 0.01 for XAG)
-    if (s === "XAUUSD") return 0.10;
+    if (s === "XAUUSD") return 0.1;
     if (s === "XAGUSD") return 0.01;
 
     // Indices (for UI: 1 punkt = 1 pip)
     if (/(US30|DJ30|DJI|NAS100|NDX|US100|SPX500|US500|GER40|DE40|UK100|FTSE|FRA40|EU50)/i.test(s)) return 1;
 
     // ---- Crypto (symbol-specifik pip-size for bedre skala) ----
-    if (/^BTC/.test(s) || /^ETH/.test(s) || /^BNB/.test(s)) return 1;       // high price → 1 USD pr. pip
-    if (/^SOL/.test(s) || /^LTC/.test(s) || /^DOT/.test(s)) return 0.1;     // mid price → 0.1
+    if (/^BTC/.test(s) || /^ETH/.test(s) || /^BNB/.test(s)) return 1; // high price → 1 USD pr. pip
+    if (/^SOL/.test(s) || /^LTC/.test(s) || /^DOT/.test(s)) return 0.1; // mid price → 0.1
     if (/^XRP/.test(s) || /^ADA/.test(s) || /^DOGE/.test(s) || /^TRX/.test(s) || /^XLM/.test(s)) return 0.001; // low price → 0.001
-    if (/^SHIB/.test(s)) return 0.000001;                                   // ultra low
+    if (/^SHIB/.test(s)) return 0.000001; // ultra low
 
     // FX
-    if (/^[A-Z]{3}JPY$/.test(s)) return 0.01;    // JPY-par
-    if (/^[A-Z]{6}$/.test(s)) return 0.0001;     // Standard 6-tegns FX
+    if (/^[A-Z]{3}JPY$/.test(s)) return 0.01; // JPY-par
+    if (/^[A-Z]{6}$/.test(s)) return 0.0001; // Standard 6-tegns FX
 
     // Fallback
     return 0.0001;
@@ -84,14 +89,16 @@ function calcPips(entry: number, target: number, symbol: string): number {
     return +pips.toFixed(1);
 }
 
-/* ============ Favorit‑emojis (per bruger) ============ */
+/* ============ Favorit-emojis (per bruger) ============ */
 const favKey = (uid: string) => `tt_fav_emojis_${uid}`;
 function loadFavs(uid: string): string[] {
     try {
         const raw = localStorage.getItem(favKey(uid));
         const arr = raw ? JSON.parse(raw) : [];
         return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
-    } catch { return []; }
+    } catch {
+        return [];
+    }
 }
 function saveFavs(uid: string, favs: string[]) {
     try {
@@ -99,7 +106,7 @@ function saveFavs(uid: string, favs: string[]) {
     } catch {}
 }
 
-/* ============ Org‑config (midlertidigt i localStorage) ============ */
+/* ============ Org-config (midlertidigt i localStorage) ============ */
 type OrgConfig = {
     disclaimerChoice?: "neutral" | "ojd" | "custom";
     disclaimerCustom?: string;
@@ -112,7 +119,9 @@ function loadOrgConfig(): OrgConfig {
         const raw = localStorage.getItem(ORG_KEY);
         const json = raw ? JSON.parse(raw) : {};
         return typeof json === "object" && json ? json : {};
-    } catch { return {}; }
+    } catch {
+        return {};
+    }
 }
 function saveOrgConfig(cfg: OrgConfig) {
     try {
@@ -127,19 +136,17 @@ const DISCLAIMER_NEUTRAL =
 const DISCLAIMER_OJD = [
     "One Journey Denmark er ikke finansielle rådgivere, og dette er ikke finansiel rådgivning.",
     "Tidligere resultater er ingen garanti for fremtidige resultater.",
-    "Alt indhold er kun til læring, og hvis du handler ud fra det, gør du det på eget ansvar."
+    "Alt indhold er kun til læring, og hvis du handler ud fra det, gør du det på eget ansvar.",
 ].join("\n");
 
-/* ============ Lille emoji‑vælger (kun til fav‑redigering) ============ */
+/* ============ Lille emoji-vælger (kun til fav-redigering) ============ */
 function EmojiPickerMini({ onPick }: { onPick: (emoji: string) => void }) {
     const [q, setQ] = useState("");
     const ql = q.trim().toLowerCase();
 
     const filtered = useMemo(() => {
         if (!ql) return null;
-        return SEARCH_POOL.filter(
-            (it) => it.e.includes(ql) || it.k.some((kw) => kw.toLowerCase().includes(ql))
-        );
+        return SEARCH_POOL.filter((it) => it.e.includes(ql) || it.k.some((kw) => kw.toLowerCase().includes(ql)));
     }, [ql]);
 
     const Btn = ({ it }: { it: EmojiItem }) => (
@@ -160,7 +167,7 @@ function EmojiPickerMini({ onPick }: { onPick: (emoji: string) => void }) {
             style={{ background: "#2a2727", borderColor: border, width: 320 }}
             onMouseDown={(e) => e.stopPropagation()}
         >
-            <div className="text-[11px] mb-2 text-gray-400">Tilføj favorit‑emojis (max 12). Klik for at tilføje.</div>
+            <div className="text-[11px] mb-2 text-gray-400">Tilføj favorit-emojis (max 12). Klik for at tilføje.</div>
             <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
@@ -171,13 +178,17 @@ function EmojiPickerMini({ onPick }: { onPick: (emoji: string) => void }) {
             />
             <div className="text-[11px] uppercase tracking-wide mb-1 text-gray-400">Trading</div>
             <div className="grid gap-1 mb-3" style={{ gridTemplateColumns: "repeat(8, minmax(0, 1fr))" }}>
-                {(filtered || TRADING_EMOJIS).map((it) => <Btn key={`t-${it.e}-${it.k[0] || ""}`} it={it} />)}
+                {(filtered || TRADING_EMOJIS).map((it) => (
+                    <Btn key={`t-${it.e}-${it.k[0] || ""}`} it={it} />
+                ))}
             </div>
             {!filtered && (
                 <>
                     <div className="text-[11px] uppercase tracking-wide mb-1 text-gray-400">General</div>
                     <div className="grid gap-1" style={{ gridTemplateColumns: "repeat(8, minmax(0, 1fr))" }}>
-                        {GENERAL_EMOJIS.map((it) => <Btn key={`g-${it.e}-${it.k[0] || ""}`} it={it} />)}
+                        {GENERAL_EMOJIS.map((it) => (
+                            <Btn key={`g-${it.e}-${it.k[0] || ""}`} it={it} />
+                        ))}
                     </div>
                 </>
             )}
@@ -187,7 +198,21 @@ function EmojiPickerMini({ onPick }: { onPick: (emoji: string) => void }) {
 
 /* ===================== Hovedkomponent ===================== */
 export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) => void }) {
-    const { user } = useDummySession();
+    const session = useSession();
+    const supaUser = session?.user as any | null;
+    const user = supaUser
+        ? {
+            id: supaUser.id as string,
+            name: (supaUser.user_metadata?.full_name as string) || (supaUser.email as string) || "Ukendt",
+            isPro:
+                !!(
+                    supaUser?.user_metadata?.isPro ||
+                    supaUser?.app_metadata?.isPro ||
+                    supaUser?.user_metadata?.plan === "pro" ||
+                    supaUser?.app_metadata?.plan === "pro"
+                ),
+        }
+        : null;
 
     const [open, setOpen] = useState(false);
 
@@ -215,7 +240,9 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
             if (!PREF_KEY) return {};
             const raw = localStorage.getItem(PREF_KEY);
             return raw ? JSON.parse(raw) : {};
-        } catch { return {}; }
+        } catch {
+            return {};
+        }
     };
     const savePrefs = (p: Prefs) => {
         try {
@@ -231,7 +258,6 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
 
     // Autosuggest symboler (dropdown fjernet; feltet bruges stadig)
     const [symbolQuery, setSymbolQuery] = useState("");
-    // (vi beholder filteredSymbols hvis du senere vil genaktivere listen)
     const filteredSymbols = useMemo(() => {
         const q = symbolQuery.trim().toUpperCase();
         if (!q) return ALL_SYMBOLS;
@@ -265,7 +291,7 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
     const [favs, setFavs] = useState<string[]>([]);
     const [editFavs, setEditFavs] = useState(false);
 
-    // Org‑disclaimer valg
+    // Org-disclaimer valg
     const [orgChoice, setOrgChoice] = useState<"neutral" | "ojd" | "custom">("ojd");
     const [orgCustom, setOrgCustom] = useState<string>("");
 
@@ -326,8 +352,7 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
         });
     };
 
-    const addTp = () =>
-        setTps((rows) => (rows.length >= 5 ? rows : [...rows, { id: uid("tp"), priceStr: "" }]));
+    const addTp = () => setTps((rows) => (rows.length >= 5 ? rows : [...rows, { id: uid("tp"), priceStr: "" }]));
     const removeTp = (id: string) => setTps((rows) => rows.filter((r) => r.id !== id));
 
     // Validering
@@ -345,7 +370,7 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
     };
     const isValid = !errors.symbol && !errors.entry && !errors.stop && !errors.tps && !errors.channels;
 
-    // Enter‑genvej
+    // Enter-genvej
     useEffect(() => {
         if (!open) return;
         const onKey = (e: KeyboardEvent) => {
@@ -419,7 +444,12 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
         lines.push(`Sendt af: _${user?.name || "Ukendt"}_`);
 
         // Disclaimer nederst
-        const disc = orgChoice === "ojd" ? DISCLAIMER_OJD : orgChoice === "neutral" ? DISCLAIMER_NEUTRAL : (orgCustom || DISCLAIMER_NEUTRAL);
+        const disc =
+            orgChoice === "ojd"
+                ? DISCLAIMER_OJD
+                : orgChoice === "neutral"
+                    ? DISCLAIMER_NEUTRAL
+                    : orgCustom || DISCLAIMER_NEUTRAL;
         lines.push("");
         lines.push(`_${disc.replace(/\n/g, "\n")}_`);
 
@@ -437,7 +467,7 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
             emojiDecor: useEmojiDecorations,
         });
 
-        // Gem org‑valg (midlertidigt her – flyttes til Config‑side)
+        // Gem org-valg (midlertidigt her – flyttes til Config-side)
         saveOrgConfig({
             disclaimerChoice: orgChoice,
             disclaimerCustom: orgCustom,
@@ -458,7 +488,8 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
             useEmojiDecorations,
             channels,
             sentBy: user?.name || "Ukendt",
-            disclaimer: orgChoice === "ojd" ? DISCLAIMER_OJD : orgChoice === "neutral" ? DISCLAIMER_NEUTRAL : (orgCustom || DISCLAIMER_NEUTRAL),
+            disclaimer:
+                orgChoice === "ojd" ? DISCLAIMER_OJD : orgChoice === "neutral" ? DISCLAIMER_NEUTRAL : orgCustom || DISCLAIMER_NEUTRAL,
         };
 
         onSend(payload);
@@ -466,12 +497,18 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
 
         // reset light
         setType("BUY NOW");
-        setSymbol(""); setSymbolQuery("");
-        setEntryStr(""); setStopStr("");
+        setSymbol("");
+        setSymbolQuery("");
+        setEntryStr("");
+        setStopStr("");
         setTps([{ id: uid("tp"), priceStr: "" }]);
-        setNoteMode("pick"); setNotePick(defaultNotes[0]); setNote(defaultNotes[0]);
-        setTraderMode("select"); setStrategyMode("select");
-        setIncludeTrader(true); setIncludeStrategy(true);
+        setNoteMode("pick");
+        setNotePick(defaultNotes[0]);
+        setNote(defaultNotes[0]);
+        setTraderMode("select");
+        setStrategyMode("select");
+        setIncludeTrader(true);
+        setIncludeStrategy(true);
         setOpen(false);
         setTouched({});
     };
@@ -512,11 +549,7 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
     return (
         <>
             {/* Trigger-knap */}
-            <button
-                onClick={() => setOpen(true)}
-                className="px-4 py-2 rounded-md text-sm font-medium"
-                style={{ background: gold, color: "#000" }}
-            >
+            <button onClick={() => setOpen(true)} className="px-4 py-2 rounded-md text-sm font-medium" style={{ background: gold, color: "#000" }}>
                 Send trade
             </button>
 
@@ -526,7 +559,9 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                     role="dialog"
                     aria-modal="true"
                     className="fixed inset-0 z-[999] flex items-center justify-center"
-                    onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
+                    onMouseDown={(e) => {
+                        if (e.target === e.currentTarget) setOpen(false);
+                    }}
                     style={{ background: "rgba(0,0,0,0.45)" }}
                 >
                     <div
@@ -536,13 +571,15 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-lg font-semibold" style={{ color: gold }}>Send trade</h3>
+                            <h3 className="text-lg font-semibold" style={{ color: gold }}>
+                                Send trade
+                            </h3>
                             <div className="text-xs text-gray-400">
                                 Plan:{" "}
                                 <span className="px-2 py-0.5 rounded" style={{ border: `1px solid ${gold}`, color: gold }}>
                   {(plan as string).toUpperCase()}
                 </span>{" "}
-                                · Kanal‑limit: {channelLimit === Infinity ? "Ubegrænset" : channelLimit}
+                                · Kanal-limit: {channelLimit === Infinity ? "Ubegrænset" : channelLimit}
                             </div>
                         </div>
 
@@ -554,15 +591,25 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                                     id="sendtrade-symbol-input"
                                     value={symbolQuery}
                                     onBlur={() => setTouched((t) => ({ ...t, symbol: true }))}
-                                    onChange={(e) => { const q = e.target.value.toUpperCase(); setSymbolQuery(q); setSymbol(q); }}
+                                    onChange={(e) => {
+                                        const q = e.target.value.toUpperCase();
+                                        setSymbolQuery(q);
+                                        setSymbol(q);
+                                    }}
                                     placeholder="F.eks. EURUSD, XAUUSD, BTCUSD, XRPUSD"
                                     className="w-full rounded-md px-3 py-2 text-sm outline-none border"
-                                    style={{ background: "#211d1d", color: "#f0f0f0", borderColor: errors.symbol && touched.symbol ? "#ff5757" : border }}
+                                    style={{
+                                        background: "#211d1d",
+                                        color: "#f0f0f0",
+                                        borderColor: errors.symbol && touched.symbol ? "#ff5757" : border,
+                                    }}
                                     aria-invalid={!!errors.symbol && touched.symbol}
                                     aria-describedby="symbol-help"
                                 />
                                 {/* Dropdown med forslag er fjernet bevidst */}
-                                <div id="symbol-help" className="text-[11px] text-gray-400 mt-1">Skriv symbolet præcist (fx XRPUSD).</div>
+                                <div id="symbol-help" className="text-[11px] text-gray-400 mt-1">
+                                    Skriv symbolet præcist (fx XRPUSD).
+                                </div>
                                 {!!errors.symbol && touched.symbol && <div className="text-[11px] text-[#ff8a8a] mt-1">{errors.symbol}</div>}
                             </label>
 
@@ -574,8 +621,10 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                                     className="w-full rounded-md px-3 py-2 text-sm outline-none border"
                                     style={{ background: "#211d1d", color: "#f0f0f0", borderColor: border }}
                                 >
-                                    {["BUY NOW","SELL NOW","BUY LIMIT","SELL LIMIT","BUY STOP","SELL STOP"].map((t) => (
-                                        <option key={t} value={t}>{t}</option>
+                                    {["BUY NOW", "SELL NOW", "BUY LIMIT", "SELL LIMIT", "BUY STOP", "SELL STOP"].map((t) => (
+                                        <option key={t} value={t}>
+                                            {t}
+                                        </option>
                                     ))}
                                 </select>
                             </label>
@@ -590,7 +639,11 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                                         onChange={(e) => setEntryStr(e.target.value)}
                                         placeholder="1.2345"
                                         className="w-full rounded-md px-3 py-2 text-sm outline-none border"
-                                        style={{ background: "#211d1d", color: "#f0f0f0", borderColor: errors.entry && touched.entry ? "#ff5757" : border }}
+                                        style={{
+                                            background: "#211d1d",
+                                            color: "#f0f0f0",
+                                            borderColor: errors.entry && touched.entry ? "#ff5757" : border,
+                                        }}
                                         aria-invalid={!!errors.entry && touched.entry}
                                     />
                                     {!!errors.entry && touched.entry && <div className="text-[11px] text-[#ff8a8a] mt-1">{errors.entry}</div>}
@@ -604,7 +657,11 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                                         onChange={(e) => setStopStr(e.target.value)}
                                         placeholder="1.2300"
                                         className="w-full rounded-md px-3 py-2 text-sm outline-none border"
-                                        style={{ background: "#211d1d", color: "#f0f0f0", borderColor: errors.stop && touched.stop ? "#ff5757" : border }}
+                                        style={{
+                                            background: "#211d1d",
+                                            color: "#f0f0f0",
+                                            borderColor: errors.stop && touched.stop ? "#ff5757" : border,
+                                        }}
                                         aria-invalid={!!errors.stop && touched.stop}
                                     />
                                     {!!errors.stop && touched.stop && <div className="text-[11px] text-[#ff8a8a] mt-1">{errors.stop}</div>}
@@ -615,7 +672,7 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                         {/* TP’er */}
                         <div className="mt-4 space-y-2">
                             <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-300">Take Profit (TP1‑TP5)</span>
+                                <span className="text-sm text-gray-300">Take Profit (TP1-TP5)</span>
                                 <button
                                     type="button"
                                     onClick={addTp}
@@ -700,17 +757,8 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                                             }}
                                             onClick={() => toggleChannel(ch.id)}
                                         >
-                                            <input
-                                                id={`ch-${ch.id}`}
-                                                type="checkbox"
-                                                className="sr-only"
-                                                checked={selected}
-                                                onChange={() => toggleChannel(ch.id)}
-                                            />
-                                            <span
-                                                className="inline-block w-4 h-4 rounded border flex items-center justify-center"
-                                                style={{ borderColor: selected ? gold : "#555" }}
-                                            >
+                                            <input id={`ch-${ch.id}`} type="checkbox" className="sr-only" checked={selected} onChange={() => toggleChannel(ch.id)} />
+                                            <span className="inline-block w-4 h-4 rounded border flex items-center justify-center" style={{ borderColor: selected ? gold : "#555" }}>
                         {selected ? "✓" : ""}
                       </span>
                                             <span className="text-sm">{ch.name}</span>
@@ -719,12 +767,8 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                                 })}
                             </div>
 
-                            {!!errors.channels && touched.channels && (
-                                <div className="mt-2 text-[11px] text-[#ff8a8a]">{errors.channels}</div>
-                            )}
-                            {channelLimit !== Infinity && (
-                                <div className="mt-1 text-[11px] text-gray-500">Din plan tillader maks. {channelLimit} kanal(er) pr. signal.</div>
-                            )}
+                            {!!errors.channels && touched.channels && <div className="mt-2 text-[11px] text-[#ff8a8a]">{errors.channels}</div>}
+                            {channelLimit !== Infinity && <div className="mt-1 text-[11px] text-gray-500">Din plan tillader maks. {channelLimit} kanal(er) pr. signal.</div>}
                         </div>
 
                         {/* Analytiker + Strategi */}
@@ -746,7 +790,11 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                                                 className="flex-1 rounded-md px-3 py-2 text-sm outline-none border"
                                                 style={{ background: "#211d1d", color: "#f0f0f0", borderColor: border }}
                                             >
-                                                {defaultTraders.map((t) => <option key={t} value={t}>{t}</option>)}
+                                                {["Mikkel H.", "Anders K.", "Team Alpha"].map((t) => (
+                                                    <option key={t} value={t}>
+                                                        {t}
+                                                    </option>
+                                                ))}
                                             </select>
                                             <button
                                                 type="button"
@@ -798,7 +846,11 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                                                 className="flex-1 rounded-md px-3 py-2 text-sm outline-none border"
                                                 style={{ background: "#211d1d", color: "#f0f0f0", borderColor: border }}
                                             >
-                                                {defaultStrategies.map((t) => <option key={t} value={t}>{t}</option>)}
+                                                {["Breakout A", "NY Reversal", "Trend Pullback"].map((t) => (
+                                                    <option key={t} value={t}>
+                                                        {t}
+                                                    </option>
+                                                ))}
                                             </select>
                                             <button
                                                 type="button"
@@ -842,7 +894,10 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                                     <input
                                         type="checkbox"
                                         checked={useEmojiDecorations}
-                                        onChange={(e) => { setUseEmojiDecorations(e.target.checked); savePrefs({ emojiDecor: e.target.checked }); }}
+                                        onChange={(e) => {
+                                            setUseEmojiDecorations(e.target.checked);
+                                            savePrefs({ emojiDecor: e.target.checked });
+                                        }}
                                     />
                                     Emoji pynt (📍/❌/🎯)
                                 </label>
@@ -855,16 +910,26 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                                         <>
                                             <select
                                                 value={notePick}
-                                                onChange={(e) => { setNotePick(e.target.value); setNote(e.target.value); }}
+                                                onChange={(e) => {
+                                                    setNotePick(e.target.value);
+                                                    setNote(e.target.value);
+                                                }}
                                                 className="flex-1 rounded-md px-3 py-2 text-sm outline-none border"
                                                 style={{ background: "#211d1d", color: "#f0f0f0", borderColor: border }}
                                             >
-                                                {defaultNotes.map((n) => <option key={n} value={n}>{n}</option>)}
+                                                {["TP1 ramt → flyt SL til BE", "Skaler 50% ved TP1", "Nyhedsrisiko – reducér størrelse"].map((n) => (
+                                                    <option key={n} value={n}>
+                                                        {n}
+                                                    </option>
+                                                ))}
                                                 <option value="__custom__">✏️ Skriv ny…</option>
                                             </select>
                                             <button
                                                 type="button"
-                                                onClick={() => { setNoteMode("custom"); if (notePick === "__custom__") setNote(""); }}
+                                                onClick={() => {
+                                                    setNoteMode("custom");
+                                                    if (notePick === "__custom__") setNote("");
+                                                }}
                                                 className="px-2 py-1 rounded border text-xs hover:bg-white/5"
                                                 style={{ borderColor: gold, color: gold }}
                                                 title="Skriv ny"
@@ -884,7 +949,11 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                                             />
                                             <button
                                                 type="button"
-                                                onClick={() => { setNoteMode("pick"); setNotePick(defaultNotes[0]); setNote(defaultNotes[0]); }}
+                                                onClick={() => {
+                                                    setNoteMode("pick");
+                                                    setNotePick("TP1 ramt → flyt SL til BE");
+                                                    setNote("TP1 ramt → flyt SL til BE");
+                                                }}
                                                 className="px-2 py-1 rounded border text-xs hover:bg-white/5"
                                                 style={{ borderColor: gold, color: gold }}
                                                 title="Brug liste"
@@ -898,7 +967,7 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                                 {/* Favorit-emojis til note */}
                                 <div>
                                     <div className="flex items-center justify-between">
-                                        <div className="text-xs text-gray-400">Favorit‑emojis (indsættes i note)</div>
+                                        <div className="text-xs text-gray-400">Favorit-emojis (indsættes i note)</div>
                                         <div className="relative">
                                             <button
                                                 type="button"
@@ -948,16 +1017,19 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                             </div>
                         </div>
 
-                        {/* Org‑disclaimer (midlertidigt “admin” felt i modal) */}
+                        {/* Org-disclaimer (midlertidigt “admin” felt i modal) */}
                         <div className="mt-5 rounded-xl border p-3" style={{ borderColor: border }}>
-                            <div className="text-xs text-gray-400 mb-2">Disclaimer (midlertidig, flyttes til Config‑side):</div>
+                            <div className="text-xs text-gray-400 mb-2">Disclaimer (midlertidig, flyttes til Config-side):</div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                 <label className="text-sm flex items-center gap-2">
                                     <input
                                         type="radio"
                                         name="disc"
                                         checked={orgChoice === "neutral"}
-                                        onChange={() => { setOrgChoice("neutral"); saveOrgConfig({ disclaimerChoice: "neutral" }); }}
+                                        onChange={() => {
+                                            setOrgChoice("neutral");
+                                            saveOrgConfig({ disclaimerChoice: "neutral" });
+                                        }}
                                     />
                                     Neutral
                                 </label>
@@ -966,7 +1038,10 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                                         type="radio"
                                         name="disc"
                                         checked={orgChoice === "ojd"}
-                                        onChange={() => { setOrgChoice("ojd"); saveOrgConfig({ disclaimerChoice: "ojd" }); }}
+                                        onChange={() => {
+                                            setOrgChoice("ojd");
+                                            saveOrgConfig({ disclaimerChoice: "ojd" });
+                                        }}
                                     />
                                     One Journey Denmark
                                 </label>
@@ -975,7 +1050,10 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                                         type="radio"
                                         name="disc"
                                         checked={orgChoice === "custom"}
-                                        onChange={() => { setOrgChoice("custom"); saveOrgConfig({ disclaimerChoice: "custom" }); }}
+                                        onChange={() => {
+                                            setOrgChoice("custom");
+                                            saveOrgConfig({ disclaimerChoice: "custom" });
+                                        }}
                                     />
                                     Custom…
                                 </label>
@@ -983,18 +1061,21 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                             {orgChoice === "custom" && (
                                 <textarea
                                     value={orgCustom}
-                                    onChange={(e) => { setOrgCustom(e.target.value); saveOrgConfig({ disclaimerCustom: e.target.value }); }}
+                                    onChange={(e) => {
+                                        setOrgCustom(e.target.value);
+                                        saveOrgConfig({ disclaimerCustom: e.target.value });
+                                    }}
                                     rows={3}
                                     className="mt-2 w-full rounded-md px-3 py-2 text-sm outline-none border"
                                     style={{ background: "#211d1d", color: "#f0f0f0", borderColor: border }}
-                                    placeholder="Skriv jeres standard‑disclaimer…"
+                                    placeholder="Skriv jeres standard-disclaimer…"
                                 />
                             )}
                         </div>
 
                         {/* Preview */}
                         <div className="rounded-xl p-4 border mt-4" style={{ borderColor: border, background: "#211d1d" }}>
-                            <div className="text-xs text-gray-400 mb-2">Forhåndsvisning (Discord‑format)</div>
+                            <div className="text-xs text-gray-400 mb-2">Forhåndsvisning (Discord-format)</div>
                             <pre className="whitespace-pre-wrap text-sm">{formatPreview()}</pre>
                         </div>
 
@@ -1015,11 +1096,7 @@ export default function SendTrade({ onSend }: { onSend: (t: TradeSignalInput) =>
                                 >
                                     Send trade
                                 </button>
-                                <button
-                                    onClick={() => setOpen(false)}
-                                    className="px-3 py-2 rounded-md text-sm border"
-                                    style={{ borderColor: gold, color: gold }}
-                                >
+                                <button onClick={() => setOpen(false)} className="px-3 py-2 rounded-md text-sm border" style={{ borderColor: gold, color: gold }}>
                                     Luk
                                 </button>
                             </div>

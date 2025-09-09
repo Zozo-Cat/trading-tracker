@@ -2,13 +2,21 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { useDummySession } from "@/lib/dummyAuth";
+import { useSession } from "@supabase/auth-helpers-react";
 import { EmojiPopover } from "@/app/_components/emoji";
 
 const gold = "#D4AF37";
 
 export default function QuickMessage() {
-    const { user } = useDummySession();
+    const session = useSession();
+    const supaUser = session?.user as any | null;
+    const user = supaUser
+        ? {
+            id: supaUser.id as string,
+            name: (supaUser.user_metadata?.full_name as string) || (supaUser.email as string) || "Ukendt",
+        }
+        : null;
+
     const [channel, setChannel] = useState<"team" | "mentees" | "community">("team");
     const [text, setText] = useState("");
     const [showEmoji, setShowEmoji] = useState(false);
@@ -120,20 +128,14 @@ export default function QuickMessage() {
                             )}
                         </div>
 
-                        <button
-                            onClick={send}
-                            className="px-3 py-1.5 rounded-md text-sm font-medium"
-                            style={{ background: gold, color: "#000" }}
-                        >
+                        <button onClick={send} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: gold, color: "#000" }}>
                             Send
                         </button>
                     </div>
                 </div>
             </div>
 
-            <div className="text-xs text-gray-400">
-                Tip: Hurtige tekst-beskeder. Brug “Send trade” til strukturerede signaler.
-            </div>
+            <div className="text-xs text-gray-400">Tip: Hurtige tekst-beskeder. Brug “Send trade” til strukturerede signaler.</div>
         </div>
     );
 }

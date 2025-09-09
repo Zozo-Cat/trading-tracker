@@ -10,7 +10,10 @@ type Props = {
     defaultSide?: "login" | "signup";
 };
 
-export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }: Props) {
+export default function AuthCombined({
+                                         pageTitle = "",
+                                         defaultSide = "signup",
+                                     }: Props) {
     const router = useRouter();
 
     // UI: aktiv side
@@ -46,7 +49,7 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
         } else {
             setLoginMsg("Du er nu logget ind ✅");
             setTimeout(() => {
-                router.push("/");
+                router.push("/dashboard");
                 router.refresh();
             }, 400);
         }
@@ -74,7 +77,6 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
             email: signupEmail,
             password: signupPassword,
             options: {
-                // gem attestation (ikke fødselsdato)
                 data: { is18: true, age_attested_at: new Date().toISOString() },
             },
         });
@@ -82,18 +84,20 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
         if (error) {
             setSignupMsg("Kunne ikke oprette konto: " + error.message);
         } else {
-            setSignupMsg("Konto oprettet! Tjek venligst din email for at bekræfte kontoen.");
+            setSignupMsg(
+                "Konto oprettet! Tjek venligst din email for at bekræfte kontoen."
+            );
         }
         setSignupLoading(false);
     }
 
     async function handleDiscordLogin() {
-        const origin = typeof window !== "undefined" ? window.location.origin : undefined;
+        const origin =
+            typeof window !== "undefined" ? window.location.origin : undefined;
         const { error } = await supabase.auth.signInWithOAuth({
             provider: "discord",
             options: {
-                // Første gang efter OAuth: send til 18+ attestation
-                redirectTo: origin ? `${origin}/age-check` : undefined,
+                redirectTo: origin ? `${origin}/dashboard` : undefined,
             },
         });
         if (error) setLoginMsg(error.message);
@@ -114,7 +118,9 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-semibold">Log ind</h2>
                             <button
-                                className={`text-xs px-2 py-1 rounded border ${active === "login" ? "opacity-100" : "opacity-60"}`}
+                                className={`text-xs px-2 py-1 rounded border ${
+                                    active === "login" ? "opacity-100" : "opacity-60"
+                                }`}
                                 style={{ borderColor: "#D4AF37", color: "#D4AF37" }}
                                 onClick={() => setActive("login")}
                             >
@@ -159,7 +165,9 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
                             </button>
                         </div>
 
-                        {loginMsg && <p className="mt-3 text-sm text-white/90">{loginMsg}</p>}
+                        {loginMsg && (
+                            <p className="mt-3 text-sm text-white/90">{loginMsg}</p>
+                        )}
                     </div>
 
                     {/* Streg */}
@@ -170,7 +178,9 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-semibold">Opret konto</h2>
                             <button
-                                className={`text-xs px-2 py-1 rounded border ${active === "signup" ? "opacity-100" : "opacity-60"}`}
+                                className={`text-xs px-2 py-1 rounded border ${
+                                    active === "signup" ? "opacity-100" : "opacity-60"
+                                }`}
                                 style={{ borderColor: "#D4AF37", color: "#D4AF37" }}
                                 onClick={() => setActive("signup")}
                             >
@@ -219,9 +229,18 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
                                 />
                                 <span>
                   Jeg accepterer{" "}
-                                    <Link href="/vilkar" className="underline text-[#76ED77]">vilkår</Link>,{" "}
-                                    <Link href="/privatliv" className="underline text-[#76ED77]">privatliv</Link>{" "}
-                                    og <Link href="/cookies" className="underline text-[#76ED77]">cookies</Link>.
+                                    <Link href="/vilkar" className="underline text-[#76ED77]">
+                    vilkår
+                  </Link>
+                  ,{" "}
+                                    <Link href="/privatliv" className="underline text-[#76ED77]">
+                    privatliv
+                  </Link>{" "}
+                                    og{" "}
+                                    <Link href="/cookies" className="underline text-[#76ED77]">
+                    cookies
+                  </Link>
+                  .
                 </span>
                             </label>
 
@@ -234,7 +253,9 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
                                 {signupLoading ? "Opretter konto..." : "Opret konto"}
                             </button>
 
-                            {signupError && <p className="text-sm text-red-400">{signupError}</p>}
+                            {signupError && (
+                                <p className="text-sm text-red-400">{signupError}</p>
+                            )}
                         </form>
 
                         <div className="mt-4">
@@ -246,7 +267,9 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
                             </button>
                         </div>
 
-                        {signupMsg && <p className="mt-3 text-sm text-white/90">{signupMsg}</p>}
+                        {signupMsg && (
+                            <p className="mt-3 text-sm text-white/90">{signupMsg}</p>
+                        )}
                     </div>
                 </div>
             </div>
