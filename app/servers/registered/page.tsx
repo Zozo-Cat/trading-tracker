@@ -2,14 +2,13 @@
 import Link from "next/link";
 import CopyButton from "../CopyButton";
 import { prisma } from "../../../lib/db";
-import { cookies } from "next/headers";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { getServerClient } from "@/lib/supabaseServer";
 
 export const dynamic = "force-dynamic";
 
 export default async function RegisteredServersPage() {
     // Hent Supabase-session (server-side)
-    const supabase = createServerComponentClient({ cookies });
+    const supabase = getServerClient();
     const {
         data: { session },
     } = await supabase.auth.getSession();
@@ -57,9 +56,13 @@ export default async function RegisteredServersPage() {
                 <div style={{ textAlign: "center", maxWidth: 720 }}>
                     <h1>Gemte servere</h1>
                     <p style={{ marginTop: 8 }}>
-                        Din konto er ikke tilknyttet Discord. Log ind med Discord for at se dine tilknyttede servere.
+                        Din konto er ikke tilknyttet Discord. Log ind med Discord for at se dine tilknyttede
+                        servere.
                     </p>
-                    <Link href="/servers" style={{ color: "#D4AF37", textDecoration: "underline", display: "inline-block", marginTop: 12 }}>
+                    <Link
+                        href="/servers"
+                        style={{ color: "#D4AF37", textDecoration: "underline", display: "inline-block", marginTop: 12 }}
+                    >
                         Til /servers
                     </Link>
                 </div>
@@ -99,10 +102,7 @@ export default async function RegisteredServersPage() {
             ) : (
                 <ul style={{ display: "grid", gap: 12, listStyle: "none", padding: 0 }}>
                     {servers.map((s) => (
-                        <li
-                            key={s.serverId}
-                            style={{ border: "1px solid #D4AF37", borderRadius: 8, padding: 12 }}
-                        >
+                        <li key={s.serverId} style={{ border: "1px solid #D4AF37", borderRadius: 8, padding: 12 }}>
                             <div
                                 style={{
                                     display: "flex",

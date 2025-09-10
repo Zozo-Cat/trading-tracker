@@ -1,7 +1,6 @@
 // app/servers/page.tsx — viser KUN servere hvor botten er medlem + "Tilknyt"-knap
 import RegisterBtn from "./register-btn";
-import { cookies } from "next/headers";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { getServerClient } from "@/lib/supabaseServer";
 
 type Guild = {
     id: string;
@@ -33,7 +32,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ServersPage() {
     // Hent Supabase-session server-side
-    const supabase = createServerComponentClient({ cookies });
+    const supabase = getServerClient();
     const {
         data: { session },
     } = await supabase.auth.getSession();
