@@ -1,9 +1,9 @@
+// app/signals/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSession, useSessionContext } from "@supabase/auth-helpers-react";
-import { supabase } from "@/lib/supabaseClient";
+import { useSession, useSupabaseClient } from "@/app/_components/Providers";
 
 /* =============== Typer =============== */
 type SignalType =
@@ -87,13 +87,26 @@ function calcPips(entry: number, target: number, symbol: string): number {
 
 /* =============== Komponent =============== */
 export default function SignalsPage() {
-    // Supabase session (+ loading)
+    // Supabase session
     const sbSession = useSession();
-    const { isLoading } = useSessionContext();
     const user = sbSession?.user;
-    const meta: any = user?.user_metadata || {};
+    const supabase = useSupabaseClient();
+
+    // Vi havde tidligere useSessionContext() fra auth-helpers for en "isLoading".
+    // Erstatning: lav en lille "checking"-fase der afsluttes, når vi har læst session én gang.
+    const [checking, setChecking] = useState(true);
+    useEffect(() => {
+        let alive = true;
+        supabase.auth.getSession().then(() => {
+            if (alive) setChecking(false);
+        });
+        return () => {
+            alive = false;
+        };
+    }, [supabase]);
 
     // Afledte flags (samme idé som før; læses nu fra user_metadata)
+    const meta: any = user?.user_metadata || {};
     const isAdmin = Boolean(meta.isTeamLead || meta.isCommunityLead);
     const plan = meta.isPro ? "pro" : "free";
     const channelLimit = plan === "pro" ? Infinity : plan === "premium" ? 3 : 1;
@@ -296,7 +309,7 @@ export default function SignalsPage() {
     };
 
     /* =============== Gatekeeping (UI) =============== */
-    if (isLoading) {
+    if (checking) {
         return (
             <div className="min-h-screen" style={{ background: "#211d1d" }}>
                 <div className="mx-auto max-w-5xl px-4 py-10">
@@ -372,12 +385,9 @@ export default function SignalsPage() {
                     </div>
                 </header>
 
-                {/* === FORM, preview, actions (uændret markup – behold din eksisterende del) === */}
-                {/* ... Jeg har efterladt alt dit UI nedenfor som i din fil, blot med de nye handlers/variabler ... */}
-
-                {/* === Eksempel på preview-blokken (behold resten fra din fil) === */}
+                {/* === FORM, preview, actions (uændret markup) === */}
                 <div className="rounded-2xl p-5 space-y-5 border" style={{ background: "#2a2727", color: "#f0f0f0", borderColor: border }}>
-                    {/* ... hele din formular (felter, kanaler, TP’er osv.) ... */}
+                    {/* (behold resten af din formular som i originalen) */}
                     <div className="rounded-xl p-4 border" style={{ borderColor: border, background: "#211d1d" }}>
                         <div className="text-xs text-gray-400 mb-2">Forhåndsvisning (Discord-format)</div>
                         <pre className="whitespace-pre-wrap text-sm">{formatDiscordPreview(draft)}</pre>
