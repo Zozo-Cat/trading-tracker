@@ -1,27 +1,78 @@
+// app/auth/callback/page.tsx
 "use client";
 
-import { useEffect } from "react";
+import React, { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useSession } from "@/app/_components/Providers";
+import { useSession, useSupabaseClient } from "@/app/_components/Providers";
 
-export default function AuthCallbackPage() {
+export const dynamic = "force-dynamic"; // undgå prerender på callback-siden
+
+function CallbackInner() {
     const router = useRouter();
-    const sp = useSearchParams();
+    const search = useSearchParams();
     const session = useSession();
-    const next = sp.get("next") || "/dashboard";
+    const supabase = useSupabaseClient();
+
+    // valgfri: hvis du bruger Supabase OAuth (PKCE), byt code->session (no-op hvis ikke nødvendigt)
+    useEffect(() => {
+        (async () => {
+            try {
+                // findes i supabase-js v2; safe med optional chaining
+                // @ts-expect-error - metode er ikke typet i alle setups
+                await supabase.auth.exchangeCodeForSession?.(window.location.href);
+            } catch {}
+        })();
+    }, [supabase]);
+
+    const next = search.get("next") || "/dashboard";
 
     useEffect(() => {
-        // Når session er tilgængelig i client, hopper vi videre.
+        // Når session er klar, send videre
         if (session !== null) {
             router.replace(next);
         }
     }, [session, router, next]);
 
     return (
-        <div style={{ minHeight: "50vh", display: "grid", placeItems: "center" }}>
-            <div>
-                <p style={{ color: "#D4AF37" }}>Behandler login…</p>
+        <main
+            style={{
+                color: "#D4AF37",
+                background: "#211d1d",
+                minHeight: "100vh",
+                display: "grid",
+                placeItems: "center",
+                padding: 24,
+            }}
+        >
+            <div style={{ textAlign: "center" }}>
+                <h1>Logger ind…</h1>
+                <p>Vent et øjeblik, du bliver sendt videre.</p>
             </div>
-        </div>
+        </main>
+    );
+}
+
+export default function AuthCallbackPage() {
+    return (
+        <Suspense
+            fallback={
+                <main
+                    style={{
+                        color: "#D4AF37",
+                        background: "#211d1d",
+                        minHeight: "100vh",
+                        display: "grid",
+                        placeItems: "center",
+                        padding: 24,
+                    }}
+                >
+                    <div style={{ textAlign: "center" }}>
+                        <h1>Logger ind…</h1>
+                    </div>
+                </main>
+            }
+        >
+            <CallbackInner />
+        </Suspense>
     );
 }
