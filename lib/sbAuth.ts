@@ -15,29 +15,45 @@ export function useSession() {
             setSession(data.session ?? null);
             setStatus(data.session ? "authenticated" : "unauthenticated");
         });
+
         const { data: sub } = supabase.auth.onAuthStateChange((_ev, s) => {
             setSession(s ?? null);
             setStatus(s ? "authenticated" : "unauthenticated");
         });
+
         return () => sub.subscription.unsubscribe();
     }, []);
 
-    // ensartet shape mht. tidligere brug:
+    // Bevar samme shape som tidligere kode forventer
     return {
-        data: session ? { user: { ...session.user, ...session.user?.user_metadata } } : null,
+        data: session
+            ? { user: { ...session.user, ...session.user?.user_metadata } }
+            : null,
         status,
     };
 }
 
-export async function signIn(provider?: "discord") {
-    if (provider === "discord") {
-        const origin = typeof window !== "undefined" ? window.location.origin : undefined;
-        const { error } = await supabase.auth.signInWithOAuth({
-            provider: "discord",
-            options: { redirectTo: origin ? `${origin}/age-check` : undefined },
-        });
-        if (error) throw error;
-    }
+/**
+ * Sign in with Discord via Supabase OAuth.
+ * @param provider  Kun "discord" pt.
+ * @param next      Hvor brugeren skal lande efter login (default: "/dashboard")
+ */
+export async function signIn(provider?: "discord", next: string = "/dashboard") {
+    if (provider !== "discord") return;
+
+    const origin =
+        typeof window !== "undefined" ? window.location.origin : undefined;
+
+    const redirectTo = origin
+        ? `${origin}/auth/callback?next=${encodeURIComponent(next)}`
+        : undefined;
+
+    const { error } = await supabase.auth.signInWithOAuth({
+        provider: "discord",
+        options: { redirectTo },
+    });
+
+    if (error) throw error;
 }
 
 export async function signOut() {

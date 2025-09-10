@@ -12,7 +12,11 @@ export function AuthButtons() {
         const origin = typeof window !== "undefined" ? window.location.origin : "";
         await supabase.auth.signInWithOAuth({
             provider: "discord",
-            options: { redirectTo: `${origin}/dashboard` },
+            options: {
+                redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(
+                    "/dashboard"
+                )}`,
+            },
         });
     };
 

@@ -9,7 +9,14 @@ export default function DevLoginPage() {
     const supabase = useSupabaseClient();
 
     return (
-        <main style={{ color: "#D4AF37", background: "#211d1d", minHeight: "100vh", padding: 24 }}>
+        <main
+            style={{
+                color: "#D4AF37",
+                background: "#211d1d",
+                minHeight: "100vh",
+                padding: 24,
+            }}
+        >
             <h1>Dev / Login (Supabase)</h1>
 
             {user ? (
@@ -17,7 +24,10 @@ export default function DevLoginPage() {
                     <p>
                         Logget ind som: <b>{user.email}</b>
                     </p>
-                    <pre className="mt-4 p-3 rounded" style={{ background: "#1a1818", border: "1px solid #3b3838" }}>
+                    <pre
+                        className="mt-4 p-3 rounded"
+                        style={{ background: "#1a1818", border: "1px solid #3b3838" }}
+                    >
             {JSON.stringify(user, null, 2)}
           </pre>
                     <button
@@ -36,10 +46,14 @@ export default function DevLoginPage() {
                     <p>Ikke logget ind.</p>
                     <button
                         onClick={async () => {
+                            const origin =
+                                typeof window !== "undefined" ? window.location.origin : "";
                             await supabase.auth.signInWithOAuth({
                                 provider: "discord",
                                 options: {
-                                    redirectTo: typeof window !== "undefined" ? `${window.location.origin}/age-check` : undefined,
+                                    redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(
+                                        "/dashboard"
+                                    )}`,
                                 },
                             });
                         }}

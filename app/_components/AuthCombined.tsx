@@ -1,3 +1,4 @@
+// app/_components/AuthCombined.tsx
 "use client";
 
 import { useState } from "react";
@@ -35,6 +36,17 @@ export default function AuthCombined({
     const [signupMsg, setSignupMsg] = useState<string | null>(null);
     const [signupError, setSignupError] = useState<string | null>(null);
 
+    function getNext() {
+        if (typeof window === "undefined") return "/dashboard";
+        const sp = new URLSearchParams(window.location.search);
+        return (
+            sp.get("callbackUrl") ||
+            sp.get("next") ||
+            window.location.pathname + window.location.search ||
+            "/dashboard"
+        );
+    }
+
     async function handleLogin(e: React.FormEvent) {
         e.preventDefault();
         setLoginLoading(true);
@@ -48,11 +60,16 @@ export default function AuthCombined({
         if (error) {
             setLoginMsg("Kunne ikke logge ind: " + error.message);
         } else {
+            const next = getNext();
             setLoginMsg("Du er nu logget ind ✅");
             setTimeout(() => {
-                router.push("/dashboard");
+                try {
+                    router.replace(decodeURIComponent(next));
+                } catch {
+                    router.replace(next);
+                }
                 router.refresh();
-            }, 400);
+            }, 300);
         }
         setLoginLoading(false);
     }
@@ -74,14 +91,12 @@ export default function AuthCombined({
             return;
         }
 
+        const origin = typeof window !== "undefined" ? window.location.origin : "";
         const { error } = await supabase.auth.signUp({
             email: signupEmail,
             password: signupPassword,
             options: {
-                emailRedirectTo:
-                    typeof window !== "undefined"
-                        ? `${window.location.origin}/login`
-                        : undefined,
+                emailRedirectTo: origin ? `${origin}/login` : undefined,
             },
         });
 
@@ -93,17 +108,17 @@ export default function AuthCombined({
         setSignupLoading(false);
     }
 
-    // ← Kun denne funktion er ændret i forhold til tidligere flow
+    // Discord OAuth → via server route /auth/callback med next
     async function handleDiscordLogin() {
         const origin =
             typeof window !== "undefined" ? window.location.origin : "";
-        const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(
-            "/dashboard"
-        )}`;
+        const next = getNext();
 
         const { error } = await supabase.auth.signInWithOAuth({
             provider: "discord",
-            options: { redirectTo },
+            options: {
+                redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
+            },
         });
         if (error) setLoginMsg(error.message);
     }

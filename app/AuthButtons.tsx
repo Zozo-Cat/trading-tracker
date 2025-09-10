@@ -5,20 +5,20 @@ import { supabase } from "@/lib/supabaseClient";
 
 export function AuthButtons() {
     const session = useSession();
-    const su = session?.user as any | null;
+    const su = (session?.user as any) || null;
 
     if (!su) {
-        const clientId = process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID;
         return (
             <button
                 onClick={async () => {
+                    const origin =
+                        typeof window !== "undefined" ? window.location.origin : "";
                     await supabase.auth.signInWithOAuth({
                         provider: "discord",
                         options: {
-                            redirectTo:
-                                typeof window !== "undefined"
-                                    ? `${window.location.origin}/age-check`
-                                    : undefined,
+                            redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(
+                                "/dashboard"
+                            )}`,
                         },
                     });
                 }}
@@ -31,9 +31,7 @@ export function AuthButtons() {
     }
 
     const name =
-        (su.user_metadata?.full_name as string) ||
-        (su.email as string) ||
-        "Bruger";
+        (su.user_metadata?.full_name as string) || (su.email as string) || "Bruger";
 
     return (
         <div className="flex items-center gap-3">

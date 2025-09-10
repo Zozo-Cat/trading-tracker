@@ -169,9 +169,9 @@ export default function ConfigSectionsLayout({ children }: { children: React.Rea
                             </>
                         ) : (
                             <>
-                <span className="text-sm" style={{ color: "var(--tt-accent)" }}>
-                  Ikke forbundet
-                </span>
+                                <span className="text-sm" style={{ color: "var(--tt-accent)" }}>
+                                    Ikke forbundet
+                                </span>
                                 <span
                                     className="inline-block w-2.5 h-2.5 rounded-full"
                                     style={{ backgroundColor: "#e67e22" }}
@@ -183,7 +183,7 @@ export default function ConfigSectionsLayout({ children }: { children: React.Rea
                                             options: {
                                                 redirectTo:
                                                     typeof window !== "undefined"
-                                                        ? `${window.location.origin}/age-check`
+                                                        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent("/age-check")}`
                                                         : undefined,
                                             },
                                         });

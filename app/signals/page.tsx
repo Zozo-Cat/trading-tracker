@@ -329,10 +329,11 @@ export default function SignalsPage() {
                         <div>Du er ikke logget ind.</div>
                         <button
                             onClick={async () => {
+                                const origin = typeof window !== "undefined" ? window.location.origin : "";
                                 await supabase.auth.signInWithOAuth({
                                     provider: "discord",
                                     options: {
-                                        redirectTo: typeof window !== "undefined" ? `${window.location.origin}/age-check` : undefined,
+                                        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent("/dashboard")}`,
                                     },
                                 });
                             }}
