@@ -1,7 +1,6 @@
 // app/api/servers/register/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { getServerClient } from "@/lib/supabaseServer";
 import { prisma } from "../../../../lib/db";
 
 function randomServerId() {
@@ -16,7 +15,7 @@ function randomJoinCode() {
 }
 
 export async function POST(req: NextRequest) {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = getServerClient();
     const {
         data: { session },
     } = await supabase.auth.getSession();
@@ -36,7 +35,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Unauthorized (no discordId)" }, { status: 401 });
     }
 
-    const body = (await req.json().catch(() => null)) as { guildId?: string; name?: string } | null;
+    const body = (await req.json().catch(() => null)) as
+        | { guildId?: string; name?: string }
+        | null;
+
     if (!body?.guildId || !body?.name) {
         return NextResponse.json({ error: "Missing guildId or name" }, { status: 400 });
     }

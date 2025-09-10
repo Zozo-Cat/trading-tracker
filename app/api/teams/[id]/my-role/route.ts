@@ -1,6 +1,6 @@
+// app/api/teams/[id]/my-role/route.ts
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { getServerClient } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 type Params = { params: { id: string } };
@@ -9,7 +9,7 @@ export async function GET(_req: Request, { params }: Params) {
     const teamId = params.id;
     if (!teamId) return NextResponse.json({ error: "team id mangler" }, { status: 400 });
 
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = getServerClient();
     const { data: auth, error: authErr } = await supabase.auth.getUser();
     if (authErr || !auth?.user) {
         return NextResponse.json({ error: "Ikke logget ind" }, { status: 401 });
