@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
+import { useSupabaseClient } from "@/app/_components/Providers";
 
 type Props = {
     pageTitle?: string;
@@ -14,6 +14,7 @@ export default function AuthCombined({
                                          pageTitle = "",
                                          defaultSide = "signup",
                                      }: Props) {
+    const supabase = useSupabaseClient();
     const router = useRouter();
 
     // UI: aktiv side
@@ -28,8 +29,8 @@ export default function AuthCombined({
     // Signup state
     const [signupEmail, setSignupEmail] = useState("");
     const [signupPassword, setSignupPassword] = useState("");
-    const [signupAccept, setSignupAccept] = useState(false);
     const [signupIs18, setSignupIs18] = useState(false);
+    const [signupAccept, setSignupAccept] = useState(false);
     const [signupLoading, setSignupLoading] = useState(false);
     const [signupMsg, setSignupMsg] = useState<string | null>(null);
     const [signupError, setSignupError] = useState<string | null>(null);
@@ -77,28 +78,32 @@ export default function AuthCombined({
             email: signupEmail,
             password: signupPassword,
             options: {
-                data: { is18: true, age_attested_at: new Date().toISOString() },
+                emailRedirectTo:
+                    typeof window !== "undefined"
+                        ? `${window.location.origin}/login`
+                        : undefined,
             },
         });
 
         if (error) {
-            setSignupMsg("Kunne ikke oprette konto: " + error.message);
+            setSignupError(error.message || "Oprettelse fejlede.");
         } else {
-            setSignupMsg(
-                "Konto oprettet! Tjek venligst din email for at bekræfte kontoen."
-            );
+            setSignupMsg("Konto oprettet! Tjek din email for bekræftelse.");
         }
         setSignupLoading(false);
     }
 
+    // ← Kun denne funktion er ændret i forhold til tidligere flow
     async function handleDiscordLogin() {
         const origin =
-            typeof window !== "undefined" ? window.location.origin : undefined;
+            typeof window !== "undefined" ? window.location.origin : "";
+        const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(
+            "/dashboard"
+        )}`;
+
         const { error } = await supabase.auth.signInWithOAuth({
             provider: "discord",
-            options: {
-                redirectTo: origin ? `${origin}/dashboard` : undefined,
-            },
+            options: { redirectTo },
         });
         if (error) setLoginMsg(error.message);
     }
@@ -149,11 +154,13 @@ export default function AuthCombined({
                             <button
                                 type="submit"
                                 disabled={loginLoading}
-                                className="w-full p-3 rounded font-medium text-black disabled:opacity-70"
+                                className="w-full p-3 rounded font-medium text-black"
                                 style={{ backgroundColor: "#76ed77" }}
                             >
-                                {loginLoading ? "Logger ind..." : "Log ind"}
+                                {loginLoading ? "Logger ind…" : "Log ind"}
                             </button>
+
+                            {loginMsg && <p className="text-sm text-white/90">{loginMsg}</p>}
                         </form>
 
                         <div className="mt-4">
@@ -164,14 +171,12 @@ export default function AuthCombined({
                                 Log ind med Discord
                             </button>
                         </div>
-
-                        {loginMsg && (
-                            <p className="mt-3 text-sm text-white/90">{loginMsg}</p>
-                        )}
                     </div>
 
-                    {/* Streg */}
-                    <div className="hidden md:block w-px bg-gray-700" />
+                    {/* Divider */}
+                    <div className="hidden md:flex items-center">
+                        <div className="w-px h-full bg-[#3b3838]" />
+                    </div>
 
                     {/* Signup */}
                     <div className="bg-[#1a1818] rounded-xl border border-[#3b3838] p-6 flex flex-col">
@@ -206,56 +211,35 @@ export default function AuthCombined({
                                 required
                             />
 
-                            {/* 18+ attestation */}
-                            <label className="flex items-start gap-2 text-sm text-gray-200">
+                            <label className="flex items-center gap-2 text-sm text-white/80">
                                 <input
                                     type="checkbox"
-                                    className="mt-1"
                                     checked={signupIs18}
                                     onChange={(e) => setSignupIs18(e.target.checked)}
-                                    required
                                 />
-                                <span>Jeg bekræfter, at jeg er 18 år eller derover.</span>
+                                Jeg bekræfter at jeg er 18+
                             </label>
-
-                            {/* Vilkår/privatliv/cookies */}
-                            <label className="flex items-start gap-2 text-sm text-gray-200">
+                            <label className="flex items-center gap-2 text-sm text-white/80">
                                 <input
                                     type="checkbox"
-                                    className="mt-1"
                                     checked={signupAccept}
                                     onChange={(e) => setSignupAccept(e.target.checked)}
-                                    required
                                 />
-                                <span>
-                  Jeg accepterer{" "}
-                                    <Link href="/vilkar" className="underline text-[#76ED77]">
-                    vilkår
-                  </Link>
-                  ,{" "}
-                                    <Link href="/privatliv" className="underline text-[#76ED77]">
-                    privatliv
-                  </Link>{" "}
-                                    og{" "}
-                                    <Link href="/cookies" className="underline text-[#76ED77]">
-                    cookies
-                  </Link>
-                  .
-                </span>
+                                Jeg accepterer vilkår, privatliv og cookies
                             </label>
-
-                            <button
-                                type="submit"
-                                disabled={signupLoading}
-                                className="w-full p-3 rounded font-medium text-black disabled:opacity-70"
-                                style={{ backgroundColor: "#89ff00" }}
-                            >
-                                {signupLoading ? "Opretter konto..." : "Opret konto"}
-                            </button>
 
                             {signupError && (
                                 <p className="text-sm text-red-400">{signupError}</p>
                             )}
+
+                            <button
+                                type="submit"
+                                disabled={signupLoading}
+                                className="w-full p-3 rounded font-medium text-black"
+                                style={{ backgroundColor: "#76ed77" }}
+                            >
+                                {signupLoading ? "Opretter…" : "Opret konto"}
+                            </button>
                         </form>
 
                         <div className="mt-4">

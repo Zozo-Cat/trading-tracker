@@ -1,4 +1,3 @@
-// app/_components/Header.tsx
 "use client";
 
 import Image from "next/image";
@@ -7,9 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell } from "lucide-react";
 import CommunityPicker from "@/app/_components/CommunityPicker";
 
-// ⬇️ Supabase hooks/klient + router til logout-redirect
-import { useSession } from "@supabase/auth-helpers-react";
-import { supabase } from "@/lib/supabaseClient";
+// Supabase hooks/klient + router til logout-redirect
+import { useSession, useSupabaseClient } from "@/app/_components/Providers";
 import { useRouter } from "next/navigation";
 
 type Notif = {
@@ -26,7 +24,8 @@ function isNotifArray(val: any): val is Notif[] {
 export default function Header() {
     const router = useRouter();
     const session = useSession();                 // Supabase session (null hvis ikke logget ind)
-    const user = (session?.user as any) || null;  // Beholder samme "user" variabel som før
+    const supabase = useSupabaseClient();         // Supabase client via Provider
+    const user = (session?.user as any) || null;
 
     const [mounted, setMounted] = useState(false);
     useEffect(() => setMounted(true), []);
@@ -97,14 +96,12 @@ export default function Header() {
     const markAllRead = () => setNotifs(arr => arr.map(n => ({ ...n, read: true })));
     const markOneRead = (id: string) => setNotifs(arr => arr.map(n => (n.id === id ? { ...n, read: true } : n)));
 
-    // ⬇️ Bevar præcis samme UI; kun logout-funktionen ændres til Supabase
     const handleLogout = async () => {
         await supabase.auth.signOut();
         router.push("/login");
         router.refresh();
     };
 
-    // Supabase Discord-avatar hvis den findes; ellers fallback til tidligere felt
     const avatar =
         (user?.user_metadata?.avatar_url as string | undefined) ??
         (user?.image as string | undefined) ??
@@ -123,83 +120,37 @@ export default function Header() {
                         <span className="px-3 py-2 rounded-md border border-transparent text-gray-500">…</span>
                     ) : !user ? (
                         <>
-                            {/* Nye links for ikke-loggede */}
-                            <Link
-                                href="/nyheder"
-                                className="px-3 py-2 rounded-md border text-sm"
-                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
-                            >
+                            <Link href="/nyheder" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
                                 Nyheder
                             </Link>
-                            <Link
-                                href="/partnere"
-                                className="px-3 py-2 rounded-md border text-sm"
-                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
-                            >
+                            <Link href="/partnere" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
                                 Partnere
                             </Link>
-
-                            {/* Behold eksisterende info-links */}
-                            <Link
-                                href="/planer"
-                                className="px-3 py-2 rounded-md border text-sm"
-                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
-                            >
+                            <Link href="/planer" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
                                 Planer og Priser
                             </Link>
-                            <Link
-                                href="/saadan-virker-det"
-                                className="px-3 py-2 rounded-md border text-sm"
-                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
-                            >
+                            <Link href="/saadan-virker-det" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
                                 Sådan virker det
                             </Link>
-
-                            {/* Call-to-actions */}
-                            <Link
-                                href="/login"
-                                className="px-3 py-2 rounded-md text-black font-medium text-sm"
-                                style={{ backgroundColor: "#76ed77" }}
-                            >
+                            <Link href="/login" className="px-3 py-2 rounded-md text-black font-medium text-sm" style={{ backgroundColor: "#76ed77" }}>
                                 Log ind
                             </Link>
-
-                            <Link
-                                href="/signup"
-                                className="px-3 py-2 rounded-md text-black font-medium text-sm"
-                                style={{ backgroundColor: "#5dade2" }}
-                            >
+                            <Link href="/signup" className="px-3 py-2 rounded-md text-black font-medium text-sm" style={{ backgroundColor: "#5dade2" }}>
                                 Registrer dig
                             </Link>
                         </>
                     ) : (
                         <>
-                            <Link
-                                href="/trades"
-                                className="px-3 py-2 rounded-md border text-sm"
-                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
-                            >
+                            <Link href="/trades" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
                                 Mine trades
                             </Link>
-                            <Link
-                                href="/teams"
-                                className="px-3 py-2 rounded-md border text-sm"
-                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
-                            >
+                            <Link href="/teams" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
                                 Mine teams
                             </Link>
-                            <Link
-                                href="/statistik"
-                                className="px-3 py-2 rounded-md border text-sm"
-                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
-                            >
+                            <Link href="/statistik" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
                                 Statistik
                             </Link>
-                            <Link
-                                href="/opgrader"
-                                className="px-3 py-2 rounded-md border text-sm"
-                                style={{ color: "#D4AF37", borderColor: "#D4AF37" }}
-                            >
+                            <Link href="/opgrader" className="px-3 py-2 rounded-md border text-sm" style={{ color: "#D4AF37", borderColor: "#D4AF37" }}>
                                 Opgrader
                             </Link>
 
@@ -232,13 +183,7 @@ export default function Header() {
                             </div>
 
                             <Link href="/min-side" className="flex items-center">
-                                <img
-                                    src={avatar}
-                                    alt="Profil"
-                                    width={36}
-                                    height={36}
-                                    className="rounded-full border border-gray-500"
-                                />
+                                <img src={avatar} alt="Profil" width={36} height={36} className="rounded-full border border-gray-500" />
                             </Link>
                             <button
                                 onClick={handleLogout}
@@ -306,9 +251,7 @@ export default function Header() {
                                             )}
                                             <div className="flex-1">
                                                 <div className="text-sm text-gray-100">{n.title}</div>
-                                                <div className="text-xs text-gray-400 mt-0.5">
-                                                    {new Date(n.createdAt).toLocaleString()}
-                                                </div>
+                                                <div className="text-xs text-gray-400 mt-0.5">{new Date(n.createdAt).toLocaleString()}</div>
                                             </div>
                                         </div>
                                     );
