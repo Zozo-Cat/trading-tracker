@@ -1,54 +1,70 @@
 // app/auth/callback/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSupabaseClient } from "@/app/_components/Providers";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default function AuthCallbackPage() {
     const router = useRouter();
-    const sp = useSearchParams();
     const supabase = useSupabaseClient();
-
-    const next = useMemo(() => sp.get("next") || "/dashboard", [sp]);
-    const [msg, setMsg] = useState("Færdiggør login…");
+    const [msg, setMsg] = useState("Completing sign-in…");
 
     useEffect(() => {
-        let alive = true;
-
         (async () => {
             try {
-                // 1) Hvis vi er i "code exchange"-flow (PKCE)
-                const url = typeof window !== "undefined" ? window.location.href : "";
-                const hasCode = typeof window !== "undefined" && new URL(url).searchParams.get("code");
-                if (hasCode) {
-                    const { error } = await supabase.auth.exchangeCodeForSession(url);
-                    if (error) throw error;
+                const href = typeof window !== "undefined" ? window.location.href : "";
+                if (!href) return;
+
+                const u = new URL(href);
+                const next = u.searchParams.get("next") || "/dashboard";
+                const code = u.searchParams.get("code");
+                const err =
+                    u.searchParams.get("error_description") || u.searchParams.get("error");
+
+                // Hvis OAuth fejlede
+                if (err) {
+                    const text = decodeURIComponent(err);
+                    setMsg(text);
+                    router.replace(`/login?error=${encodeURIComponent(text)}`);
+                    return;
                 }
 
-                // 2) Ellers (implicit/hash) – supabase-js sætter session ved page load.
-                //    Vi tjekker og venter kort hvis nødvendigt:
-                for (let i = 0; i < 10; i++) {
-                    const { data } = await supabase.auth.getSession();
-                    if (data.session) break;
-                    await new Promise((r) => setTimeout(r, 100));
+                // Byt kode til session (Supabase OAuth PKCE)
+                if (code) {
+                    const { error } = await supabase.auth.exchangeCodeForSession(href);
+                    if (error) {
+                        setMsg("Kunne ikke logge ind.");
+                        router.replace(`/login?error=${encodeURIComponent(error.message)}`);
+                        return;
+                    }
                 }
-            } catch (e: any) {
-                console.error(e);
-                if (alive) setMsg("Kunne ikke færdiggøre login. Prøv igen.");
-            } finally {
-                if (alive) router.replace(next);
+
+                // Har vi nu en session? Gå til next, ellers login
+                const { data } = await supabase.auth.getSession();
+                if (data.session) {
+                    router.replace(next);
+                } else {
+                    router.replace("/login");
+                }
+            } catch {
+                router.replace("/login");
             }
         })();
-
-        return () => {
-            alive = false;
-        };
-    }, [next, router, supabase]);
+    }, [router, supabase]);
 
     return (
-        <main className="min-h-screen flex items-center justify-center" style={{ background:"#211d1d", color:"#D4AF37" }}>
-            <div className="rounded-xl border px-4 py-3" style={{ borderColor:"#3b3838" }}>
+        <main
+            className="min-h-screen flex items-center justify-center"
+            style={{ background: "#211d1d", color: "#D4AF37" }}
+        >
+            <div
+                className="rounded-2xl p-6 border"
+                style={{ borderColor: "#D4AF37" }}
+            >
                 {msg}
             </div>
         </main>
