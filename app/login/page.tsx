@@ -1,11 +1,14 @@
+// app/login/page.tsx
 "use client";
 
+import React, { Suspense, useEffect } from "react";
 import AuthCombined from "@/app/_components/AuthCombined";
-import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/app/_components/Providers";
 
-export default function LoginPage() {
+export const dynamic = "force-dynamic"; // undgå prerender-issues på siden
+
+function LoginInner() {
     const session = useSession();
     const router = useRouter();
     const sp = useSearchParams();
@@ -23,4 +26,12 @@ export default function LoginPage() {
     }, [session, router, cb]);
 
     return <AuthCombined pageTitle="Log ind / Opret konto" defaultSide="login" />;
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={null}>
+            <LoginInner />
+        </Suspense>
+    );
 }

@@ -1,11 +1,16 @@
+// app/config/(sections)/org-bot/page.tsx
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import { getConfig, saveConfig } from "@/lib/configStore";
 import { useSearchParams } from "next/navigation";
 import OfficialBrandingSection from "./branding/OfficialBrandingSection";
 import DashboardDefaultsSection from "./dashboard/DashboardDefaultsSection"; // ⬅️ NY
 
+export const dynamic = "force-dynamic";
+
+/* Små UI helpers (uændret) */
 function FieldLabel({ label, help }: { label: string; help: string }) {
     return (
         <div className="flex items-center gap-2">
@@ -46,7 +51,17 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
     );
 }
 
+/** Ydre export: kun wrapper (ingen layout-ændring) */
 export default function OrgBotPage() {
+    return (
+        <Suspense fallback={null}>
+            <OrgBotPageInner />
+        </Suspense>
+    );
+}
+
+/** Al eksisterende logik ind her (uændret layout) */
+function OrgBotPageInner() {
     const userId = (process.env.NEXT_PUBLIC_DEV_PROFILE_ID as string) || "demo-user";
     const search = useSearchParams();
 
@@ -57,14 +72,14 @@ export default function OrgBotPage() {
         (window as any).ttSetDirty?.(true);
     };
 
-    // 🔧 Sørg for at ttSaveHooks eksisterer + wrap ttSetDirty så lokal `dirty` følger med
+    // 🔧 Sørg for at ttSaveHooks eksisterer + sync local dirty med global
     React.useEffect(() => {
-        // init hook-container
         (window as any).ttSaveHooks = (window as any).ttSaveHooks || [];
-        // wrap ttSetDirty
         const prev = (window as any).ttSetDirty;
         (window as any).ttSetDirty = (v: boolean) => {
-            try { prev?.(v); } catch {}
+            try {
+                prev?.(v);
+            } catch {}
             setDirty(Boolean(v));
         };
         return () => {
@@ -73,11 +88,14 @@ export default function OrgBotPage() {
     }, []);
 
     const [activeCommunityId, setActiveCommunityId] = React.useState<string>("");
+
     React.useEffect(() => {
         const urlId = search.get("communityId");
         if (urlId) {
             setActiveCommunityId(urlId);
-            try { localStorage.setItem("tt_last_community_id", urlId); } catch {}
+            try {
+                localStorage.setItem("tt_last_community_id", urlId);
+            } catch {}
         } else {
             try {
                 const last = localStorage.getItem("tt_last_community_id") || "";
@@ -92,21 +110,22 @@ export default function OrgBotPage() {
                 setActiveCommunityId(e.newValue);
             }
         };
+        // 🔧 matcher CommunityPicker's dispatch: "tt:community-changed"
         const onCustom = (e: any) => {
-            const id = e?.detail?.id;
-            if (id) setActiveCommunityId(id);
+            const id = e?.detail;
+            if (typeof id === "string") setActiveCommunityId(id);
         };
         window.addEventListener("storage", onStorage);
-        window.addEventListener("tt:community:changed", onCustom as EventListener);
+        window.addEventListener("tt:community-changed", onCustom as EventListener);
         return () => {
             window.removeEventListener("storage", onStorage);
-            window.removeEventListener("tt:community:changed", onCustom as EventListener);
+            window.removeEventListener("tt:community-changed", onCustom as EventListener);
         };
     }, []);
 
     const doSave = async () => {
         try {
-            // 1) Kør alle undersektioners save-hooks (OfficialBrandingSection, DashboardDefaultsSection, m.fl.)
+            // 1) Kør alle undersektioners save-hooks
             const hooks: any[] = (window as any).ttSaveHooks || [];
             await Promise.all(hooks.map((fn) => (typeof fn === "function" ? fn() : null)));
 
@@ -164,7 +183,7 @@ export default function OrgBotPage() {
 
     const currentView = search.get("view") || "branding";
 
-    // Tom-state for hele sektionen hvis intet community valgt
+    // Tom-state hvis intet community valgt
     const EmptyCTA = (
         <section
             className="rounded-2xl p-8 flex flex-col items-start gap-4"

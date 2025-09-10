@@ -1,9 +1,11 @@
 // app/config/(sections)/channels-routing/page.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { getConfig, saveConfig } from "@/lib/configStore";
+
+export const dynamic = "force-dynamic";
 
 const ADMIN_BIT = 0x8; // Discord permission: Administrator
 const CLIENT_ID = process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID as string;
@@ -14,13 +16,22 @@ type BotMemberships = { present: string[]; absent: string[] };
 type DiscordChannel = { id: string; name: string; type: number; categoryName: string | null };
 type SavedChannel = { id: string; name: string; discordChannelId: string; isDefault?: boolean };
 
+/** Wrapper så useSearchParams er inde i en Suspense-boundary */
 export default function ChannelsRoutingPage() {
+    return (
+        <Suspense fallback={null}>
+            <ChannelsRoutingPageInner />
+        </Suspense>
+    );
+}
+
+function ChannelsRoutingPageInner() {
     const router = useRouter();
     const sp = useSearchParams();
     const view = (sp.get("view") ?? "servers") as "servers" | "channels";
 
     // ---- Config (persist via localStorage nu, API senere) ----
-    const userId = process.env.NEXT_PUBLIC_DEV_PROFILE_ID || 'demo-user';
+    const userId = process.env.NEXT_PUBLIC_DEV_PROFILE_ID || "demo-user";
     const [cfg, setCfg] = useState(() => getConfig(userId));
     const [dirty, setDirty] = useState(false);
     const connectedIds = useMemo(
@@ -150,7 +161,9 @@ export default function ChannelsRoutingPage() {
                     ...prev.integrations,
                     discord: {
                         ...prev.integrations?.discord,
-                        connectedGuildIds: Array.from(new Set([...(prev.integrations?.discord?.connectedGuildIds ?? []), ...needAdd])),
+                        connectedGuildIds: Array.from(
+                            new Set([...(prev.integrations?.discord?.connectedGuildIds ?? []), ...needAdd])
+                        ),
                     },
                 },
             }));
@@ -275,13 +288,7 @@ export default function ChannelsRoutingPage() {
                     ) : (
                         <Grid>
                             {botOut.map((g) => (
-                                <GuildCard
-                                    key={g.id}
-                                    guild={g}
-                                    status="available"
-                                    dropdownStatus="na"
-                                    primaryLink={inviteUrlFor(g.id)}
-                                />
+                                <GuildCard key={g.id} guild={g} status="available" dropdownStatus="na" primaryLink={inviteUrlFor(g.id)} />
                             ))}
                         </Grid>
                     )}
