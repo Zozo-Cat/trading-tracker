@@ -1,6 +1,7 @@
+// app/config/(sections)/org-bot/branding/OfficialBrandingSection.tsx
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useSearchParams } from "next/navigation";
 
@@ -55,9 +56,25 @@ function SectionBox({ title, children }: { title: string; children: React.ReactN
     );
 }
 
-export default function OfficialBrandingSection({
-                                                    communityId: propCommunityId,
-                                                }: {
+/** Wrapper med Suspense (ændrer ikke layout eller styling) */
+export default function OfficialBrandingSection(props: { communityId?: string }) {
+    return (
+        <Suspense
+            fallback={
+                <SectionBox title="Official community branding">
+                    <div style={{ color: "var(--tt-accent)" }}>Henter…</div>
+                </SectionBox>
+            }
+        >
+            <OfficialBrandingSectionInner {...props} />
+        </Suspense>
+    );
+}
+
+/** Al din eksisterende logik/funktionalitet bor her (uændret) */
+function OfficialBrandingSectionInner({
+                                          communityId: propCommunityId,
+                                      }: {
     /** valgfri – hvis ikke sat, læser vi ?communityId= fra URL */
     communityId?: string;
 }) {
@@ -274,7 +291,9 @@ export default function OfficialBrandingSection({
 
     // 🔗 Registrér sektionens save-funktion til global “Gem”-knap
     useEffect(() => {
-        const hook = async () => { await saveOfficialBranding(); };
+        const hook = async () => {
+            await saveOfficialBranding();
+        };
         (window as any).ttSaveHooks = (window as any).ttSaveHooks || [];
         (window as any).ttSaveHooks.push(hook);
         return () => {
@@ -305,7 +324,7 @@ export default function OfficialBrandingSection({
         );
     }
 
-    // Ikke official → vis kun information om hvordan man bliver official
+    // Ikke official → info
     if (meta && !meta.is_official) {
         return (
             <SectionBox title="Official community branding">
@@ -326,7 +345,7 @@ export default function OfficialBrandingSection({
     return (
         <>
             <SectionBox title="Official community branding">
-                {/* 🔔 Medlemsrabat – highlight øverst hvis aktiv */}
+                {/* 🔔 Medlemsrabat */}
                 {meta?.active_discount_code && (
                     <div
                         className="rounded-lg p-4 mb-4"
@@ -336,12 +355,11 @@ export default function OfficialBrandingSection({
                             color: "#76ed77",
                         }}
                     >
-                        🎉 <b>Medlemsrabat!</b><br />
+                        🎉 <b>Medlemsrabat!</b>
+                        <br />
                         Kode: <code>{meta.active_discount_code}</code>
                         {typeof meta.active_discount_percent === "number" && <> — {meta.active_discount_percent}%</>}
-                        {meta.active_discount_desc && (
-                            <div className="text-sm mt-1">{meta.active_discount_desc}</div>
-                        )}
+                        {meta.active_discount_desc && <div className="text-sm mt-1">{meta.active_discount_desc}</div>}
                         {meta.active_discount_valid_to && (
                             <div className="text-xs mt-1 opacity-80">
                                 Gyldig til: {new Date(meta.active_discount_valid_to).toLocaleDateString()}
@@ -429,11 +447,7 @@ export default function OfficialBrandingSection({
                     />
                     {partnerLogoUrl && (
                         <div className="mt-2">
-                            <img
-                                src={partnerLogoUrl}
-                                alt="Partner logo preview"
-                                className="w-16 h-16 object-cover rounded"
-                            />
+                            <img src={partnerLogoUrl} alt="Partner logo preview" className="w-16 h-16 object-cover rounded" />
                         </div>
                     )}
                 </Row>

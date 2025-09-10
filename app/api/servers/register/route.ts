@@ -1,7 +1,6 @@
 // app/api/servers/register/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../../../lib/auth";
+import { getServerClient } from "@/lib/supabaseServer";
 import { prisma } from "../../../../lib/db";
 
 function randomServerId() {
@@ -10,18 +9,36 @@ function randomServerId() {
     for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
     return out;
 }
+
 function randomJoinCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 export async function POST(req: NextRequest) {
-    const session = await getServerSession(authOptions);
-    if (!session || !(session as any).discordUserId) {
+    const supabase = getServerClient();
+    const {
+        data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const ownerDiscordId = (session as any).discordUserId as string;
 
-    const body = await req.json().catch(() => null) as { guildId?: string; name?: string } | null;
+    // Supabase session.user indeholder standard felter som id, email, provider
+    // Hvis du gemmer Discord ID i user_metadata, kan det hentes sådan her:
+    const ownerDiscordId =
+        (session.user as any)?.user_metadata?.provider_id ||
+        (session.user as any)?.discordId ||
+        null;
+
+    if (!ownerDiscordId) {
+        return NextResponse.json({ error: "Unauthorized (no discordId)" }, { status: 401 });
+    }
+
+    const body = (await req.json().catch(() => null)) as
+        | { guildId?: string; name?: string }
+        | null;
+
     if (!body?.guildId || !body?.name) {
         return NextResponse.json({ error: "Missing guildId or name" }, { status: 400 });
     }

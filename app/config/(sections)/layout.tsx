@@ -1,11 +1,12 @@
+// app/config/(sections)/layout.tsx
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useSession, signIn, signOut } from "next-auth/react";
+import type React from "react";
+import { useSession, useSupabaseClient } from "@/app/_components/Providers";
 
-// Accent fra localStorage → CSS var
 function useAccentSync() {
     const [accent, setAccent] = useState<string>("#D4AF37");
     useEffect(() => {
@@ -30,10 +31,10 @@ function useAccentSync() {
     }, [accent]);
 }
 
-// Global dirty guard
 function useGlobalDirtyGuard() {
     useEffect(() => {
-        (window as any).ttSetDirty = (v: boolean) => ((window as any).__tt_dirty__ = !!v);
+        (window as any).ttSetDirty = (v: boolean) =>
+            ((window as any).__tt_dirty__ = !!v);
 
         const onBeforeUnload = (e: BeforeUnloadEvent) => {
             if ((window as any).__tt_dirty__) {
@@ -47,7 +48,6 @@ function useGlobalDirtyGuard() {
     }, []);
 }
 
-// Link der spørger hvis der er ugemte ændringer
 function NavLink({
                      href,
                      children,
@@ -75,12 +75,11 @@ function NavLink({
     );
 }
 
-/* ===== Venstremenu ===== */
 const mainSections = [
     { href: "/config/org-bot", label: "Organisation" },
     { href: "/config/channels-routing?view=servers", label: "Signaler & Advarsler" },
     { href: "/config/routing", label: "Routing" },
-    { href: "/config/news-tracker", label: "News Tracker" }, // ⬅️ NY selvstændig kategori
+    { href: "/config/news-tracker", label: "News Tracker" },
 ];
 
 const orgSubsections = [
@@ -100,8 +99,6 @@ const signalsSubsections = [
     { view: "traders", label: "Traders" },
     { view: "strategies", label: "Strategier" },
     { view: "defaults", label: "Defaults" },
-    // 🚫 Flyttet ud som egen hovedkategori:
-    // { view: "news", label: "News tracker" },
 ];
 
 export default function ConfigSectionsLayout({ children }: { children: React.ReactNode }) {
@@ -110,12 +107,16 @@ export default function ConfigSectionsLayout({ children }: { children: React.Rea
 
     const pathname = usePathname();
     const search = useSearchParams();
-    const { data: session, status } = useSession();
+
+    // === Supabase session (erstatter next-auth) ===
+    const sbSession = useSession();
+    const user = sbSession?.user;
+    const supabase = useSupabaseClient();
 
     const onOrg = pathname === "/config/org-bot" || pathname.startsWith("/config/org-bot/");
     const onSignals = pathname.startsWith("/config/channels-routing");
     const onRouting = pathname.startsWith("/config/routing");
-    const onNews = pathname.startsWith("/config/news-tracker"); // ⬅️ NY
+    const onNews = pathname.startsWith("/config/news-tracker");
 
     const currentView =
         search.get("view") ?? (onOrg ? "branding" : onSignals ? "servers" : "");
@@ -131,56 +132,70 @@ export default function ConfigSectionsLayout({ children }: { children: React.Rea
                         ⚙️ Trading Tracker – Indstillinger
                     </h1>
 
-                    {/* HØJRE SIDE: kun avatar + grøn prik + log ud / log ind */}
-                    {status !== "loading" && (
-                        <div className="flex items-center gap-3">
-                            {session ? (
-                                <>
-                                    <div
-                                        className="w-8 h-8 rounded-full overflow-hidden border"
-                                        style={{ borderColor: "var(--tt-accent)" }}
-                                        title={session.user?.name ?? "Profil"}
-                                    >
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img
-                                            src={session.user?.image ?? "/images/default-avatar.png"}
-                                            alt="Profil"
-                                            className="w-full h-full object-cover"
-                                        />
-                                    </div>
-                                    <span
-                                        className="inline-block w-2.5 h-2.5 rounded-full"
-                                        style={{ backgroundColor: "#76ed77" }}
-                                        title="Online"
+                    {/* HØJRE SIDE: avatar + status + log ind/ud (Supabase) */}
+                    <div className="flex items-center gap-3">
+                        {user ? (
+                            <>
+                                <div
+                                    className="w-8 h-8 rounded-full overflow-hidden border"
+                                    style={{ borderColor: "var(--tt-accent)" }}
+                                    title={(user.user_metadata?.full_name as string) ?? "Profil"}
+                                >
+                                    <img
+                                        src={
+                                            (user.user_metadata?.avatar_url as string) ||
+                                            (user.user_metadata?.picture as string) ||
+                                            "/images/default-avatar.png"
+                                        }
+                                        alt="Profil"
+                                        className="w-full h-full object-cover"
                                     />
-                                    <button
-                                        onClick={() => signOut()}
-                                        className="px-3 py-2 rounded-lg text-black font-medium"
-                                        style={{ backgroundColor: "#f0e68c" }}
-                                    >
-                                        Log ud
-                                    </button>
-                                </>
-                            ) : (
-                                <>
-                  <span className="text-sm" style={{ color: "var(--tt-accent)" }}>
-                    Ikke forbundet
-                  </span>
-                                    <span
-                                        className="inline-block w-2.5 h-2.5 rounded-full"
-                                        style={{ backgroundColor: "#e67e22" }}
-                                    />
-                                    <button
-                                        onClick={() => signIn("discord")}
-                                        className="px-3 py-2 rounded-lg text-black font-medium"
-                                        style={{ backgroundColor: "#5dade2" }}
-                                    >
-                                        Forbind Discord
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    )}
+                                </div>
+                                <span
+                                    className="inline-block w-2.5 h-2.5 rounded-full"
+                                    style={{ backgroundColor: "#76ed77" }}
+                                    title="Online"
+                                />
+                                <button
+                                    onClick={async () => {
+                                        await supabase.auth.signOut();
+                                        location.reload();
+                                    }}
+                                    className="px-3 py-2 rounded-lg text-black font-medium"
+                                    style={{ backgroundColor: "#f0e68c" }}
+                                >
+                                    Log ud
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <span className="text-sm" style={{ color: "var(--tt-accent)" }}>
+                                    Ikke forbundet
+                                </span>
+                                <span
+                                    className="inline-block w-2.5 h-2.5 rounded-full"
+                                    style={{ backgroundColor: "#e67e22" }}
+                                />
+                                <button
+                                    onClick={async () => {
+                                        await supabase.auth.signInWithOAuth({
+                                            provider: "discord",
+                                            options: {
+                                                redirectTo:
+                                                    typeof window !== "undefined"
+                                                        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent("/age-check")}`
+                                                        : undefined,
+                                            },
+                                        });
+                                    }}
+                                    className="px-3 py-2 rounded-lg text-black font-medium"
+                                    style={{ backgroundColor: "#5dade2" }}
+                                >
+                                    Forbind Discord
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </div>
             </header>
 
@@ -230,7 +245,7 @@ export default function ConfigSectionsLayout({ children }: { children: React.Rea
                                                     const active =
                                                         ("href" in sub && pathname === (sub as any).href) ||
                                                         ((sub as any).view &&
-                                                            currentView === (sub as any).view &&
+                                                            (search.get("view") ?? "branding") === (sub as any).view &&
                                                             pathname === "/config/org-bot");
                                                     return (
                                                         <NavLink
@@ -284,8 +299,6 @@ export default function ConfigSectionsLayout({ children }: { children: React.Rea
                                                 })}
                                             </div>
                                         )}
-
-                                        {/* Ingen undermenu for News Tracker – den er sin egen side */}
                                     </div>
                                 );
                             })}

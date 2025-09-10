@@ -5,6 +5,8 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
+export const dynamic = "force-dynamic";
+
 /* Supabase (browser) */
 function createSb() {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;

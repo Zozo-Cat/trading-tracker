@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useDummySession } from "@/lib/dummyAuth";
+import { useSession } from "@supabase/auth-helpers-react";
 
 export type Mentee = {
     id: string | number;
@@ -48,8 +48,12 @@ function MiniRing({ value }: { value: number }) {
         <svg width="88" height="88" viewBox="0 0 72 72" aria-label={`${v}%`}>
             <circle cx="36" cy="36" r={r} stroke="#3b3838" strokeWidth="6" fill="none" />
             <circle
-                cx="36" cy="36" r={r}
-                stroke={gold} strokeWidth="6" fill="none"
+                cx="36"
+                cy="36"
+                r={r}
+                stroke={gold}
+                strokeWidth="6"
+                fill="none"
                 strokeDasharray={`${dash} ${c - dash}`}
                 strokeLinecap="round"
                 transform="rotate(-90 36 36)"
@@ -65,10 +69,7 @@ function MiniRing({ value }: { value: number }) {
 function CardVisual({ m, isStar }: { m: Required<Mentee>; isStar: (id: string | number) => boolean }) {
     const star = isStar(m.id);
     return (
-        <div
-            className="rounded-xl border p-4 flex flex-col h-full"
-            style={{ background: cardBg, borderColor: border, minHeight: 180 }} // 220 -> 180
-        >
+        <div className="rounded-xl border p-4 flex flex-col h-full" style={{ background: cardBg, borderColor: border, minHeight: 180 }}>
             <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -98,11 +99,7 @@ function CardVisual({ m, isStar }: { m: Required<Mentee>; isStar: (id: string | 
                 <MiniRing value={m.winRate} />
             </div>
             <div className="mt-auto pt-4 flex items-center justify-end">
-                <a
-                    href={`/mentees?focus=${encodeURIComponent(String(m.id))}`}
-                    className="text-xs hover:underline"
-                    style={{ color: gold }}
-                >
+                <a href={`/mentees?focus=${encodeURIComponent(String(m.id))}`} className="text-xs hover:underline" style={{ color: gold }}>
                     Se noter →
                 </a>
             </div>
@@ -110,7 +107,7 @@ function CardVisual({ m, isStar }: { m: Required<Mentee>; isStar: (id: string | 
     );
 }
 
-/* ---------- ENKELT KORT SOM RULLER FRA HØJRE (flip‑buffer) ---------- */
+/* ---------- ENKELT KORT SOM RULLER FRA HØJRE (flip-buffer) ---------- */
 function CardRoller({
                         list,
                         startIndex = 0,
@@ -176,15 +173,13 @@ function CardRoller({
     // Transform-regler:
     // - Når anim=false: front står på 0%, back står på +100% (klar udenfor).
     // - Når anim=true: front glider til -100%, back glider ind til 0%.
-    const transformA = anim ? (frontIsA ? "translate3d(-100%,0,0)" : "translate3d(0,0,0)")
-        : (frontIsA ? "translate3d(0,0,0)"      : "translate3d(100%,0,0)");
-    const transformB = anim ? (frontIsA ? "translate3d(0,0,0)"      : "translate3d(-100%,0,0)")
-        : (frontIsA ? "translate3d(100%,0,0)"   : "translate3d(0,0,0)");
+    const transformA = anim ? (frontIsA ? "translate3d(-100%,0,0)" : "translate3d(0,0,0)") : frontIsA ? "translate3d(0,0,0)" : "translate3d(100%,0,0)";
+    const transformB = anim ? (frontIsA ? "translate3d(0,0,0)" : "translate3d(-100%,0,0)") : frontIsA ? "translate3d(100%,0,0)" : "translate3d(0,0,0)";
 
     const transition = anim ? `transform ${slideMs}ms cubic-bezier(.22,.61,.36,1)` : "none";
 
     return (
-        <div className="relative overflow-hidden rounded-xl" style={{ minHeight: 180 }}> {/* 220 -> 180 */}
+        <div className="relative overflow-hidden rounded-xl" style={{ minHeight: 180 }}>
             {/* LAG A */}
             <div className="absolute inset-0" style={{ transform: transformA, transition }}>
                 <CardVisual m={contentA} isStar={isStar} />
@@ -215,7 +210,14 @@ export default function MentorOverview({
     titleSupport?: string;
     autoRotateMs?: number;
 }) {
-    const { user } = useDummySession();
+    const session = useSession();
+    const supaUser = session?.user as any | null;
+    const user = supaUser
+        ? {
+            id: supaUser.id as string,
+            name: (supaUser.user_metadata?.full_name as string) || (supaUser.email as string) || "Ukendt",
+        }
+        : null;
 
     /* --- STARRED --- */
     const [starred, setStarred] = useState<string[]>([]);
@@ -260,7 +262,7 @@ export default function MentorOverview({
     top = padAtLeast(top, 2);
     support = padAtLeast(support, 2);
 
-    /* --- VIEW: to kolonner med to rullere i hver --- */
+    /* --- VIEW --- */
     const Section = ({ title, usingStars, list }: { title: string; usingStars: boolean; list: Required<Mentee>[] }) => {
         const multi = list.length > 1;
         return (
@@ -269,11 +271,16 @@ export default function MentorOverview({
                     <div className="flex items-center gap-2">
                         <h3 className="text-lg font-semibold text-white">{title}</h3>
                         {usingStars && (
-                            <span className="text-[11px] px-2 py-0.5 rounded border" style={{ borderColor: gold, color: gold }}
-                                  title="Ingen opfyldte grænser – viser stjernemarkerede i stedet">⭐ Favoritter</span>
+                            <span
+                                className="text-[11px] px-2 py-0.5 rounded border"
+                                style={{ borderColor: gold, color: gold }}
+                                title="Ingen opfyldte grænser – viser stjernemarkerede i stedet"
+                            >
+                ⭐ Favoritter
+              </span>
                         )}
                     </div>
-                    {multi && <div className="text-xs text-gray-400">Auto‑rul aktiv</div>}
+                    {multi && <div className="text-xs text-gray-400">Auto-rul aktiv</div>}
                 </div>
 
                 {list.length === 0 ? (

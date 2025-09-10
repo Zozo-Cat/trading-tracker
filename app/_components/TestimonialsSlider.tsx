@@ -3,8 +3,7 @@
 
 import "keen-slider/keen-slider.min.css";
 import { useKeenSlider } from "keen-slider/react";
-import { useEffect, useMemo } from "react";
-import { useDummySession } from "@/lib/dummyAuth";
+import { useEffect } from "react";
 
 type Plan = "Gratis" | "Premium" | "Pro";
 
@@ -13,40 +12,35 @@ const ITEMS = [
         name: "Mikkel H.",
         role: "Swing Trader",
         plan: "Pro" as Plan,
-        text:
-            "Trading Tracker har givet mig et klart overblik over mine trades – og hjulpet mig med at holde styr på min strategi.",
+        text: "Trading Tracker har givet mig et klart overblik over mine trades – og hjulpet mig med at holde styr på min strategi.",
         avatar: "/images/default-avatar.png",
     },
     {
         name: "Sofie L.",
         role: "Day Trader",
         plan: "Premium" as Plan,
-        text:
-            "Det er så fedt at kunne dele mine resultater med mit team og lære af hinanden. Har forbedret min win-rate markant!",
+        text: "Det er så fedt at kunne dele mine resultater med mit team og lære af hinanden. Har forbedret min win-rate markant!",
         avatar: "/images/default-avatar.png",
     },
     {
         name: "Anders K.",
         role: "Investor",
         plan: "Gratis" as Plan,
-        text:
-            "Jeg elsker statistikkerne! Jeg kan hurtigt se, hvad der virker for mig – og hvad jeg skal justere.",
+        text: "Jeg elsker statistikkerne! Jeg kan hurtigt se, hvad der virker for mig – og hvad jeg skal justere.",
         avatar: "/images/default-avatar.png",
     },
     {
         name: "Nadia R.",
         role: "Futures Trader",
         plan: "Pro" as Plan,
-        text:
-            "Teams-funktionen gør en kæmpe forskel – accountability og sparring har løftet mit niveau.",
+        text: "Teams-funktionen gør en kæmpe forskel – accountability og sparring har løftet mit niveau.",
         avatar: "/images/default-avatar.png",
     },
     {
         name: "Jonas P.",
         role: "Options",
         plan: "Premium" as Plan,
-        text:
-            "Det tog mig 2 minutter at komme i gang. Nu har jeg endelig styr på min R:R og mine bedste setups.",
+        text: "Det tog mig 2 minutter at komme i gang. Nu har jeg endelig styr på min R:R og mine bedste setups.",
         avatar: "/images/default-avatar.png",
     },
 ];
@@ -77,10 +71,6 @@ function useAutoplay(ref: any, enabled = true, interval = 4500) {
 }
 
 export default function TestimonialsSlider() {
-    // Hent brugerliste fra dummyAuth (dev-login siden). Fallback hvis tom.
-    const { users } = useDummySession();
-    const usersCount = useMemo(() => (users?.length ? users.length : 500), [users]);
-
     const [sliderRef, instanceRef] = useKeenSlider<HTMLDivElement>({
         loop: true,
         renderMode: "performance",
@@ -93,12 +83,12 @@ export default function TestimonialsSlider() {
 
     useAutoplay(instanceRef, true, 4500);
 
+    // Faste marketingtal (dummy); tidligere kom tallet fra dummyAuth
+    const usersCount = 500;
+
     return (
         <section className="mx-auto max-w-6xl px-4 py-12">
-            <h2
-                className="text-center text-2xl md:text-3xl font-bold mb-8"
-                style={{ color: "#D4AF37" }}
-            >
+            <h2 className="text-center text-2xl md:text-3xl font-bold mb-8" style={{ color: "#D4AF37" }}>
                 Hvad brugerne siger
             </h2>
 
@@ -113,14 +103,7 @@ export default function TestimonialsSlider() {
                         >
                             <div className="flex items-center gap-3">
                                 {/* Avatar med “ring”-kant i plan-farve */}
-                                <img
-                                    src={t.avatar}
-                                    alt={`${t.name} avatar`}
-                                    width={48}
-                                    height={48}
-                                    className="rounded-full border-2"
-                                    style={{ borderColor: s.bg }}
-                                />
+                                <img src={t.avatar} alt={`${t.name} avatar`} width={48} height={48} className="rounded-full border-2" style={{ borderColor: s.bg }} />
                                 <div className="flex-1">
                                     <div className="font-semibold" style={{ color: "#D4AF37" }}>
                                         {t.name}
@@ -128,10 +111,7 @@ export default function TestimonialsSlider() {
                                     <div className="text-xs text-gray-400">{t.role}</div>
                                 </div>
                                 {/* Plan badge */}
-                                <span
-                                    className="text-xs px-2 py-1 rounded-md font-semibold"
-                                    style={{ backgroundColor: s.bg, color: s.text }}
-                                >
+                                <span className="text-xs px-2 py-1 rounded-md font-semibold" style={{ backgroundColor: s.bg, color: s.text }}>
                   {t.plan}
                 </span>
                             </div>
@@ -144,25 +124,18 @@ export default function TestimonialsSlider() {
 
             {/* Pile (skjult på mobil) */}
             <div className="mt-6 hidden md:flex justify-center gap-3">
-                <button
-                    onClick={() => instanceRef.current?.prev()}
-                    className="px-3 py-2 rounded-md border border-gray-700 text-sm"
-                >
+                <button onClick={() => instanceRef.current?.prev()} className="px-3 py-2 rounded-md border border-gray-700 text-sm">
                     ◀︎
                 </button>
-                <button
-                    onClick={() => instanceRef.current?.next()}
-                    className="px-3 py-2 rounded-md border border-gray-700 text-sm"
-                >
+                <button onClick={() => instanceRef.current?.next()} className="px-3 py-2 rounded-md border border-gray-700 text-sm">
                     ▶︎
                 </button>
             </div>
 
-            {/* Count line (auto fra dummyAuth) */}
+            {/* Count line */}
             <p className="mt-8 text-center text-sm text-gray-300">
-                Mere end <span className="font-semibold">{usersCount} brugere</span> har
-                allerede brugt Trading Tracker til at tage deres trading til næste niveau —
-                vil du være den næste?
+                Mere end <span className="font-semibold">{usersCount} brugere</span> har allerede brugt Trading Tracker til at tage deres
+                trading til næste niveau — vil du være den næste?
             </p>
         </section>
     );

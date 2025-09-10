@@ -1,16 +1,21 @@
+// app/_components/AuthCombined.tsx
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
+import { useSupabaseClient } from "@/app/_components/Providers";
 
 type Props = {
     pageTitle?: string;
     defaultSide?: "login" | "signup";
 };
 
-export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }: Props) {
+export default function AuthCombined({
+                                         pageTitle = "",
+                                         defaultSide = "signup",
+                                     }: Props) {
+    const supabase = useSupabaseClient();
     const router = useRouter();
 
     // UI: aktiv side
@@ -25,11 +30,22 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
     // Signup state
     const [signupEmail, setSignupEmail] = useState("");
     const [signupPassword, setSignupPassword] = useState("");
-    const [signupAccept, setSignupAccept] = useState(false);
     const [signupIs18, setSignupIs18] = useState(false);
+    const [signupAccept, setSignupAccept] = useState(false);
     const [signupLoading, setSignupLoading] = useState(false);
     const [signupMsg, setSignupMsg] = useState<string | null>(null);
     const [signupError, setSignupError] = useState<string | null>(null);
+
+    function getNext() {
+        if (typeof window === "undefined") return "/dashboard";
+        const sp = new URLSearchParams(window.location.search);
+        return (
+            sp.get("callbackUrl") ||
+            sp.get("next") ||
+            window.location.pathname + window.location.search ||
+            "/dashboard"
+        );
+    }
 
     async function handleLogin(e: React.FormEvent) {
         e.preventDefault();
@@ -44,11 +60,16 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
         if (error) {
             setLoginMsg("Kunne ikke logge ind: " + error.message);
         } else {
+            const next = getNext();
             setLoginMsg("Du er nu logget ind ✅");
             setTimeout(() => {
-                router.push("/");
+                try {
+                    router.replace(decodeURIComponent(next));
+                } catch {
+                    router.replace(next);
+                }
                 router.refresh();
-            }, 400);
+            }, 300);
         }
         setLoginLoading(false);
     }
@@ -70,30 +91,33 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
             return;
         }
 
+        const origin = typeof window !== "undefined" ? window.location.origin : "";
         const { error } = await supabase.auth.signUp({
             email: signupEmail,
             password: signupPassword,
             options: {
-                // gem attestation (ikke fødselsdato)
-                data: { is18: true, age_attested_at: new Date().toISOString() },
+                emailRedirectTo: origin ? `${origin}/login` : undefined,
             },
         });
 
         if (error) {
-            setSignupMsg("Kunne ikke oprette konto: " + error.message);
+            setSignupError(error.message || "Oprettelse fejlede.");
         } else {
-            setSignupMsg("Konto oprettet! Tjek venligst din email for at bekræfte kontoen.");
+            setSignupMsg("Konto oprettet! Tjek din email for bekræftelse.");
         }
         setSignupLoading(false);
     }
 
+    // Discord OAuth → via server route /auth/callback med next
     async function handleDiscordLogin() {
-        const origin = typeof window !== "undefined" ? window.location.origin : undefined;
+        const origin =
+            typeof window !== "undefined" ? window.location.origin : "";
+        const next = getNext();
+
         const { error } = await supabase.auth.signInWithOAuth({
             provider: "discord",
             options: {
-                // Første gang efter OAuth: send til 18+ attestation
-                redirectTo: origin ? `${origin}/age-check` : undefined,
+                redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
             },
         });
         if (error) setLoginMsg(error.message);
@@ -114,7 +138,9 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-semibold">Log ind</h2>
                             <button
-                                className={`text-xs px-2 py-1 rounded border ${active === "login" ? "opacity-100" : "opacity-60"}`}
+                                className={`text-xs px-2 py-1 rounded border ${
+                                    active === "login" ? "opacity-100" : "opacity-60"
+                                }`}
                                 style={{ borderColor: "#D4AF37", color: "#D4AF37" }}
                                 onClick={() => setActive("login")}
                             >
@@ -143,11 +169,13 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
                             <button
                                 type="submit"
                                 disabled={loginLoading}
-                                className="w-full p-3 rounded font-medium text-black disabled:opacity-70"
+                                className="w-full p-3 rounded font-medium text-black"
                                 style={{ backgroundColor: "#76ed77" }}
                             >
-                                {loginLoading ? "Logger ind..." : "Log ind"}
+                                {loginLoading ? "Logger ind…" : "Log ind"}
                             </button>
+
+                            {loginMsg && <p className="text-sm text-white/90">{loginMsg}</p>}
                         </form>
 
                         <div className="mt-4">
@@ -158,19 +186,21 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
                                 Log ind med Discord
                             </button>
                         </div>
-
-                        {loginMsg && <p className="mt-3 text-sm text-white/90">{loginMsg}</p>}
                     </div>
 
-                    {/* Streg */}
-                    <div className="hidden md:block w-px bg-gray-700" />
+                    {/* Divider */}
+                    <div className="hidden md:flex items-center">
+                        <div className="w-px h-full bg-[#3b3838]" />
+                    </div>
 
                     {/* Signup */}
                     <div className="bg-[#1a1818] rounded-xl border border-[#3b3838] p-6 flex flex-col">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-semibold">Opret konto</h2>
                             <button
-                                className={`text-xs px-2 py-1 rounded border ${active === "signup" ? "opacity-100" : "opacity-60"}`}
+                                className={`text-xs px-2 py-1 rounded border ${
+                                    active === "signup" ? "opacity-100" : "opacity-60"
+                                }`}
                                 style={{ borderColor: "#D4AF37", color: "#D4AF37" }}
                                 onClick={() => setActive("signup")}
                             >
@@ -196,45 +226,35 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
                                 required
                             />
 
-                            {/* 18+ attestation */}
-                            <label className="flex items-start gap-2 text-sm text-gray-200">
+                            <label className="flex items-center gap-2 text-sm text-white/80">
                                 <input
                                     type="checkbox"
-                                    className="mt-1"
                                     checked={signupIs18}
                                     onChange={(e) => setSignupIs18(e.target.checked)}
-                                    required
                                 />
-                                <span>Jeg bekræfter, at jeg er 18 år eller derover.</span>
+                                Jeg bekræfter at jeg er 18+
                             </label>
-
-                            {/* Vilkår/privatliv/cookies */}
-                            <label className="flex items-start gap-2 text-sm text-gray-200">
+                            <label className="flex items-center gap-2 text-sm text-white/80">
                                 <input
                                     type="checkbox"
-                                    className="mt-1"
                                     checked={signupAccept}
                                     onChange={(e) => setSignupAccept(e.target.checked)}
-                                    required
                                 />
-                                <span>
-                  Jeg accepterer{" "}
-                                    <Link href="/vilkar" className="underline text-[#76ED77]">vilkår</Link>,{" "}
-                                    <Link href="/privatliv" className="underline text-[#76ED77]">privatliv</Link>{" "}
-                                    og <Link href="/cookies" className="underline text-[#76ED77]">cookies</Link>.
-                </span>
+                                Jeg accepterer vilkår, privatliv og cookies
                             </label>
+
+                            {signupError && (
+                                <p className="text-sm text-red-400">{signupError}</p>
+                            )}
 
                             <button
                                 type="submit"
                                 disabled={signupLoading}
-                                className="w-full p-3 rounded font-medium text-black disabled:opacity-70"
-                                style={{ backgroundColor: "#89ff00" }}
+                                className="w-full p-3 rounded font-medium text-black"
+                                style={{ backgroundColor: "#76ed77" }}
                             >
-                                {signupLoading ? "Opretter konto..." : "Opret konto"}
+                                {signupLoading ? "Opretter…" : "Opret konto"}
                             </button>
-
-                            {signupError && <p className="text-sm text-red-400">{signupError}</p>}
                         </form>
 
                         <div className="mt-4">
@@ -246,7 +266,9 @@ export default function AuthCombined({ pageTitle = "", defaultSide = "signup" }:
                             </button>
                         </div>
 
-                        {signupMsg && <p className="mt-3 text-sm text-white/90">{signupMsg}</p>}
+                        {signupMsg && (
+                            <p className="mt-3 text-sm text-white/90">{signupMsg}</p>
+                        )}
                     </div>
                 </div>
             </div>

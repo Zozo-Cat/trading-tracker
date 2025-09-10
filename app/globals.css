@@ -56,3 +56,58 @@ hr {
 .tt-border { border: 1px solid var(--tt-accent); }
 .tt-bg     { background: #1a1717; }
 .tt-chip   { background: var(--tt-accent); color: #211d1d; }
+
+/* =========================
+   Trading Tracker Dashboard
+   (scoped, påvirker KUN dashboard)
+   ========================= */
+.tt-dashboard {
+  --tt-bg: #111111;
+  --tt-panel: #1a1a1a;
+  --tt-border: #2a2a2a;
+  --tt-text: #e6e6e6;
+  --tt-dim: #b3b3b3;
+  --tt-accent: #d4af37;
+}
+
+/* Widgets */
+.tt-dashboard .tt-widget.chrome {
+  background-color: var(--tt-panel);
+  border: 1px solid var(--tt-border);
+  border-radius: 0.75rem; /* xl */
+  display: flex;
+  flex-direction: column;
+  color: var(--tt-text);
+}
+
+.tt-dashboard .tt-widget-header {
+  cursor: move; /* drag handle */
+  user-select: none;
+}
+
+.tt-dashboard .tt-widget-body {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* React-Grid-Layout tweaks */
+.tt-dashboard .react-grid-item {
+  transition: all 200ms ease;
+}
+
+.tt-dashboard .react-grid-item.react-grid-placeholder {
+  background: var(--tt-accent);
+  opacity: 0.2;
+  border-radius: 0.75rem;
+}
+
+.tt-dashboard .react-resizable-handle {
+  z-index: 20;
+  background: transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid var(--tt-border);
+}
+
+.tt-dashboard .react-resizable-handle:hover {
+  border-bottom-color: var(--tt-accent);
+}

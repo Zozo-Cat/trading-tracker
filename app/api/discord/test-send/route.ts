@@ -1,18 +1,22 @@
+// app/api/discord/test-send/route.ts
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getServerClient } from "@/lib/supabaseServer";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-    const session = await getServerSession(authOptions);
-    const userId = (session as any)?.user?.id;
+    const supabase = getServerClient();
 
+    const {
+        data: { session },
+    } = await supabase.auth.getSession();
+
+    const userId = session?.user?.id;
     if (!userId) {
         return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({} as any));
     const message = body.message || "Hello from test-send";
 
     // TODO: send rigtigt til Discord kanal via bot-token

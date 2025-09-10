@@ -1,9 +1,10 @@
+// app/mentees/page.tsx
 "use client";
 
 import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Mentee } from "@/app/_components/MentorOverview";
-import { useSession } from "next-auth/react";
+import { useSession } from "@/app/_components/Providers";
 
 const gold = "#D4AF37";
 const border = "#3b3838";
@@ -39,8 +40,9 @@ export default function MenteesPage() {
 
 /** Actual client logic lives here */
 function MenteesInner() {
-    const { data: session } = useSession();
-    const user = session?.user;
+    // Supabase session
+    const sbSession = useSession();
+    const user = sbSession?.user;
     const searchParams = useSearchParams();
 
     // Dummy data — replace with Supabase when /api/mentees is ready
@@ -60,14 +62,14 @@ function MenteesInner() {
     const [starred, setStarred] = useState<string[]>([]);
 
     useEffect(() => {
-        setStarred(loadStars(user?.id as string));
+        setStarred(loadStars(user?.id));
     }, [user?.id]);
 
     const toggleStar = (id: string | number) => {
         const s = String(id);
         setStarred((prev) => {
             const next = prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s];
-            saveStars(next, user?.id as string);
+            saveStars(next, user?.id);
             return next;
         });
     };
@@ -110,7 +112,7 @@ function MenteesInner() {
                 </a>
             </header>
 
-            {/* Controls — keep your existing controls / filters / search UI here */}
+            {/* Controls … */}
 
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {filtered.map((m) => (
