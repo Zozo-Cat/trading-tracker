@@ -1,11 +1,12 @@
+// app/dev/login/page.tsx
 "use client";
 
-import { useSession } from "@supabase/auth-helpers-react";
-import { supabase } from "@/lib/supabaseClient";
+import { useSession, useSupabaseClient } from "@/app/_components/Providers";
 
 export default function DevLoginPage() {
     const session = useSession();
     const user = session?.user;
+    const supabase = useSupabaseClient();
 
     return (
         <main style={{ color: "#D4AF37", background: "#211d1d", minHeight: "100vh", padding: 24 }}>
@@ -13,12 +14,17 @@ export default function DevLoginPage() {
 
             {user ? (
                 <>
-                    <p>Logget ind som: <b>{user.email}</b></p>
+                    <p>
+                        Logget ind som: <b>{user.email}</b>
+                    </p>
                     <pre className="mt-4 p-3 rounded" style={{ background: "#1a1818", border: "1px solid #3b3838" }}>
             {JSON.stringify(user, null, 2)}
           </pre>
                     <button
-                        onClick={async () => { await supabase.auth.signOut(); location.reload(); }}
+                        onClick={async () => {
+                            await supabase.auth.signOut();
+                            location.reload();
+                        }}
                         className="mt-4 px-3 py-2 rounded text-black"
                         style={{ background: "#f0e68c" }}
                     >
@@ -32,7 +38,9 @@ export default function DevLoginPage() {
                         onClick={async () => {
                             await supabase.auth.signInWithOAuth({
                                 provider: "discord",
-                                options: { redirectTo: typeof window !== "undefined" ? `${window.location.origin}/age-check` : undefined },
+                                options: {
+                                    redirectTo: typeof window !== "undefined" ? `${window.location.origin}/age-check` : undefined,
+                                },
                             });
                         }}
                         className="mt-3 px-3 py-2 rounded text-black"

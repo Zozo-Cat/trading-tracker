@@ -1,9 +1,10 @@
+// app/mentees/page.tsx
 "use client";
 
 import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Mentee } from "@/app/_components/MentorOverview";
-import { useSession } from "@supabase/auth-helpers-react";
+import { useSession } from "@/app/_components/Providers";
 
 const gold = "#D4AF37";
 const border = "#3b3838";
@@ -111,7 +112,7 @@ function MenteesInner() {
                 </a>
             </header>
 
-            {/* Controls … (behold som du har dem) */}
+            {/* Controls … */}
 
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {filtered.map((m) => (

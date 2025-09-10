@@ -1,13 +1,12 @@
+// app/config/(sections)/layout.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type React from "react";
-import { useSession } from "@supabase/auth-helpers-react";
-import { supabase } from "@/lib/supabaseClient";
+import { useSession, useSupabaseClient } from "@/app/_components/Providers";
 
-/* ========== Accent fra localStorage → CSS var ========== */
 function useAccentSync() {
     const [accent, setAccent] = useState<string>("#D4AF37");
     useEffect(() => {
@@ -32,7 +31,6 @@ function useAccentSync() {
     }, [accent]);
 }
 
-/* ========== Global dirty guard ========== */
 function useGlobalDirtyGuard() {
     useEffect(() => {
         (window as any).ttSetDirty = (v: boolean) =>
@@ -50,7 +48,6 @@ function useGlobalDirtyGuard() {
     }, []);
 }
 
-/* ========== Link der spørger ved ugemte ændringer ========== */
 function NavLink({
                      href,
                      children,
@@ -78,7 +75,6 @@ function NavLink({
     );
 }
 
-/* ===== Venstremenu ===== */
 const mainSections = [
     { href: "/config/org-bot", label: "Organisation" },
     { href: "/config/channels-routing?view=servers", label: "Signaler & Advarsler" },
@@ -115,6 +111,7 @@ export default function ConfigSectionsLayout({ children }: { children: React.Rea
     // === Supabase session (erstatter next-auth) ===
     const sbSession = useSession();
     const user = sbSession?.user;
+    const supabase = useSupabaseClient();
 
     const onOrg = pathname === "/config/org-bot" || pathname.startsWith("/config/org-bot/");
     const onSignals = pathname.startsWith("/config/channels-routing");
@@ -144,7 +141,6 @@ export default function ConfigSectionsLayout({ children }: { children: React.Rea
                                     style={{ borderColor: "var(--tt-accent)" }}
                                     title={(user.user_metadata?.full_name as string) ?? "Profil"}
                                 >
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
                                         src={
                                             (user.user_metadata?.avatar_url as string) ||
