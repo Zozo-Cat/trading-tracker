@@ -44,3 +44,7 @@ next-env.d.ts
 
 .idea/
 Thumbs.db
+
+# prisma local db
+prisma/dev.db
+prisma/dev.db-journal
