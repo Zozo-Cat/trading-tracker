@@ -1,18 +1,17 @@
+// app/api/discord/guilds/route.ts
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { getServerClient } from "@/lib/supabaseServer";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = getServerClient();
 
     const {
         data: { session },
     } = await supabase.auth.getSession();
 
     const userId = session?.user?.id;
-
     if (!userId) {
         return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
