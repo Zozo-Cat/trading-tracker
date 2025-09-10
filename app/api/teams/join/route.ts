@@ -1,8 +1,7 @@
 // app/api/teams/join/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { getServerClient } from "@/lib/supabaseServer";
 
 export async function POST(req: Request) {
     try {
@@ -11,7 +10,7 @@ export async function POST(req: Request) {
         const inputTeamId = body?.teamId as string | undefined;
 
         // 1) Auth: profil-id fra Supabase-session (fallback: body.profileId til DEV)
-        const supabase = createRouteHandlerClient({ cookies });
+        const supabase = getServerClient();
         const {
             data: { session },
         } = await supabase.auth.getSession();

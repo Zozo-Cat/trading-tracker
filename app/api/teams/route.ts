@@ -1,7 +1,6 @@
 // app/api/teams/route.ts
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { getServerClient } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
@@ -26,8 +25,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
     try {
-        // ⬇️ Supabase session i stedet for NextAuth
-        const supabase = createRouteHandlerClient({ cookies });
+        // Supabase session i stedet for NextAuth
+        const supabase = getServerClient();
         const {
             data: { session },
         } = await supabase.auth.getSession();
@@ -37,7 +36,11 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Ikke logget ind" }, { status: 401 });
         }
 
-        const body = (await req.json()) as { name?: string; description?: string | null; parent_team_id?: string | null };
+        const body = (await req.json()) as {
+            name?: string;
+            description?: string | null;
+            parent_team_id?: string | null;
+        };
         const { name, description = null, parent_team_id = null } = body ?? {};
         if (!name) {
             return NextResponse.json({ error: "name er påkrævet" }, { status: 400 });
