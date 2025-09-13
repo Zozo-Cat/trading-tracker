@@ -1,7 +1,7 @@
 "use client";
 
-import { widgetSizes, WidgetSlug } from "./widgetSizes";
 import { ReactNode } from "react";
+import { widgetSizes, WidgetSlug } from "./widgetSizes";
 
 export type WidgetSpec = {
     slug: WidgetSlug;
@@ -10,20 +10,36 @@ export type WidgetSpec = {
     category: string;
     defaultSize: { w: number; h: number };
     tier?: "free" | "premium" | "pro";
-    component: (props: { instanceId: string }) => ReactNode; // returns CONTENT ONLY (no chrome)
+    component: (props: { instanceId: string }) => ReactNode; // content-only (vores widgets har egen chrome pt.)
 };
 
-// Simple placeholder factory
-const P = (label: string) =>
-    function Placeholder() {
-        return (
-            <div className="text-sm text-neutral-400">
-                {label} – indhold kommer senere
-            </div>
-        );
-    };
+// ---------- Helpers ----------
+const P =
+    (label: string) =>
+        function Placeholder() {
+            return <div className="text-sm text-neutral-400">{label} – indhold kommer senere</div>;
+        };
 
-// Complete registry
+// ---------- Importer implementerede widgets ----------
+import SuccessRateWidget from "./widgets/SuccessRateWidget";
+import ProfitLossWidget from "./widgets/ProfitLossWidget";
+import TradesCountWidget from "./widgets/TradesCountWidget";
+import RiskRewardWidget from "./widgets/RiskRewardWidget";
+import ExpectancyWidget from "./widgets/ExpectancyWidget";
+import DrawdownWidget from "./widgets/DrawdownWidget";
+import StreaksWidget from "./widgets/StreaksWidget";
+import AccountGrowthWidget from "./widgets/AccountGrowthWidget";
+import SessionPerformanceWidget from "./widgets/SessionPerformanceWidget";
+import SharpeSortinoWidget from "./widgets/SharpeSortinoWidget";
+import SetupDistributionWidget from "./widgets/SetupDistributionWidget";
+import NewsVsNoNewsWidget from "./widgets/NewsVsNoNewsWidget";
+import VolatilityWidget from "./widgets/VolatilityWidget";
+import TradeDurationWidget from "./widgets/TradeDurationWidget";
+import PerformanceVsExpectancyWidget from "./widgets/PerformanceVsExpectancyWidget";
+import RiskPerTradeWidget from "./widgets/RiskPerTradeWidget";
+import ConsistencyWidget from "./widgets/ConsistencyWidget";
+
+// ---------- Registry ----------
 export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
     /* -------- System / Fallback -------- */
     filler: {
@@ -32,11 +48,7 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
         description: "Fallback når en widget ikke findes i registry",
         category: "System",
         defaultSize: widgetSizes.filler,
-        component: ({}) => (
-            <div className="text-sm text-red-400">
-                Filler widget – mangler i registry
-            </div>
-        ),
+        component: P("Filler widget – mangler i registry"),
     },
 
     /* -------- :bar_chart: Stats -------- */
@@ -46,7 +58,7 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
         description: "Andel af vundne handler",
         category: "Stats",
         defaultSize: widgetSizes.successRate,
-        component: P("Succesrate"),
+        component: ({ instanceId }) => <SuccessRateWidget instanceId={instanceId} />,
     },
     profitLoss: {
         slug: "profitLoss",
@@ -54,7 +66,7 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
         description: "Overskud eller tab i perioden",
         category: "Stats",
         defaultSize: widgetSizes.profitLoss,
-        component: P("Profit / Loss"),
+        component: ({ instanceId }) => <ProfitLossWidget instanceId={instanceId} />,
     },
     tradesCount: {
         slug: "tradesCount",
@@ -62,7 +74,7 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
         description: "Samlet antal handler i perioden",
         category: "Stats",
         defaultSize: widgetSizes.tradesCount,
-        component: P("Antal handler"),
+        component: ({ instanceId }) => <TradesCountWidget instanceId={instanceId} />,
     },
     riskReward: {
         slug: "riskReward",
@@ -70,7 +82,7 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
         description: "Gennemsnitligt risk/reward-forhold",
         category: "Stats",
         defaultSize: widgetSizes.riskReward,
-        component: P("R/R (gennemsnit)"),
+        component: ({ instanceId }) => <RiskRewardWidget instanceId={instanceId} />,
     },
     expectancy: {
         slug: "expectancy",
@@ -78,7 +90,7 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
         description: "Forventet værdi pr. trade",
         category: "Stats",
         defaultSize: widgetSizes.expectancy,
-        component: P("Expectancy (EV)"),
+        component: ({ instanceId }) => <ExpectancyWidget instanceId={instanceId} />,
     },
     drawdown: {
         slug: "drawdown",
@@ -86,7 +98,7 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
         description: "Maks. og aktuel drawdown",
         category: "Stats",
         defaultSize: widgetSizes.drawdown,
-        component: P("Drawdown"),
+        component: ({ instanceId }) => <DrawdownWidget instanceId={instanceId} />,
     },
     streaks: {
         slug: "streaks",
@@ -94,7 +106,7 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
         description: "W/L streak badges",
         category: "Stats",
         defaultSize: widgetSizes.streaks,
-        component: P("Streaks"),
+        component: ({ instanceId }) => <StreaksWidget instanceId={instanceId} />,
     },
     accountGrowth: {
         slug: "accountGrowth",
@@ -102,7 +114,7 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
         description: "Kontoens procentvise vækst",
         category: "Stats",
         defaultSize: widgetSizes.accountGrowth,
-        component: P("Kontovækst %"),
+        component: ({ instanceId }) => <AccountGrowthWidget instanceId={instanceId} />,
     },
     sessionPerformance: {
         slug: "sessionPerformance",
@@ -110,7 +122,7 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
         description: "Segmenteret performance pr. session",
         category: "Stats",
         defaultSize: widgetSizes.sessionPerformance,
-        component: P("Session performance"),
+        component: ({ instanceId }) => <SessionPerformanceWidget instanceId={instanceId} />,
     },
     sharpeSortino: {
         slug: "sharpeSortino",
@@ -118,7 +130,7 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
         description: "Risikojusteret afkast",
         category: "Stats",
         defaultSize: widgetSizes.sharpeSortino,
-        component: P("Sharpe / Sortino"),
+        component: ({ instanceId }) => <SharpeSortinoWidget instanceId={instanceId} />,
     },
     setupDistribution: {
         slug: "setupDistribution",
@@ -126,7 +138,7 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
         description: "Fordeling på setups",
         category: "Stats",
         defaultSize: widgetSizes.setupDistribution,
-        component: P("Setup-distribution"),
+        component: ({ instanceId }) => <SetupDistributionWidget instanceId={instanceId} />,
     },
     newsVsNoNews: {
         slug: "newsVsNoNews",
@@ -134,7 +146,47 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
         description: "Performance med/uden nyheder",
         category: "Stats",
         defaultSize: widgetSizes.newsVsNoNews,
-        component: P("News vs. no-news"),
+        component: ({ instanceId }) => <NewsVsNoNewsWidget instanceId={instanceId} />,
+    },
+    volatility: {
+        slug: "volatility",
+        title: "Volatility",
+        description: "Standardafvigelse af afkast i valgt periode",
+        category: "Stats",
+        defaultSize: widgetSizes.volatility,
+        component: ({ instanceId }) => <VolatilityWidget instanceId={instanceId} />,
+    },
+    tradeDuration: {
+        slug: "tradeDuration",
+        title: "Trade Duration",
+        description: "Varighedsfordeling + gennemsnit",
+        category: "Stats",
+        defaultSize: widgetSizes.tradeDuration,
+        component: ({ instanceId }) => <TradeDurationWidget instanceId={instanceId} />,
+    },
+    perfVsExpectancy: {
+        slug: "perfVsExpectancy",
+        title: "Performance vs. Expectancy",
+        description: "Sammenligner realiseret P/L mod forventet",
+        category: "Stats",
+        defaultSize: widgetSizes.perfVsExpectancy,
+        component: ({ instanceId }) => <PerformanceVsExpectancyWidget instanceId={instanceId} />,
+    },
+    riskPerTrade: {
+        slug: "riskPerTrade",
+        title: "Risk per Trade",
+        description: "% af konto risikeret pr. trade + distribution",
+        category: "Stats",
+        defaultSize: widgetSizes.riskPerTrade,
+        component: ({ instanceId }) => <RiskPerTradeWidget instanceId={instanceId} />,
+    },
+    consistency: {
+        slug: "consistency",
+        title: "Konsistens",
+        description: "% aktive handelsdage + mikro-heatmap",
+        category: "Stats",
+        defaultSize: widgetSizes.consistency,
+        component: ({ instanceId }) => <ConsistencyWidget instanceId={instanceId} />,
     },
     customKpi: {
         slug: "customKpi",

@@ -1,3 +1,4 @@
+// app/dashboard/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -12,8 +13,14 @@ import CustomizeLayoutModal from "./_components/CustomizeLayoutModal";
 
 const RGL = WidthProvider(GridLayout);
 
+// ===== Grid constants (matcher test-look) =====
+const COLS = 12;
+const ROW_HEIGHT = 72;
+const MARGIN: [number, number] = [16, 16];         // = gap-4
+const CONTAINER_PADDING: [number, number] = [0, 0]; // ingen indre padding
+
 // === LocalStorage keys (versioneret) ===
-const LS_VERSION = "2";
+const LS_VERSION = "3"; // bump → tving ny seed
 const LS_KEYS = {
     version: "tt.dashboard.v2.version",
     widgets: "tt.dashboard.v2.widgets",
@@ -22,59 +29,63 @@ const LS_KEYS = {
 
 // === Typer ===
 type WidgetInstance = {
-    id: string;            // stable id = layout.i
-    slug: WidgetSlug;      // reference til widgetRegistry
+    id: string;     // stable id = layout.i
+    slug: WidgetSlug;
 };
 
 // === Utils ===
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-// Seed: Default dashboard (Free)
-function seedDefault(): { instances: WidgetInstance[]; layout: Layout[] } {
-    const plan: Array<{ slug: WidgetSlug; x: number; y: number }> = [
-        { slug: "welcome", x: 0, y: 0 },
-        { slug: "successRate", x: 4, y: 0 },
-        { slug: "profitLoss", x: 6, y: 0 },
-        { slug: "tradesCount", x: 8, y: 0 },
-        { slug: "riskReward", x: 10, y: 0 },
-
-        { slug: "drawdown", x: 0, y: 2 },
-        { slug: "accountGrowth", x: 3, y: 2 },
-        { slug: "streaks", x: 5, y: 2 },
-        { slug: "sessionPerformance", x: 8, y: 2 },
-
-        { slug: "todaysTrades", x: 0, y: 4 },
-        { slug: "newsList", x: 4, y: 4 },
-        { slug: "upcomingNews", x: 8, y: 4 },
-
-        { slug: "tradingGoals", x: 0, y: 5 },
-    ];
+/** Pak widgets venstre→højre i rækker á 12 kolonner, så default layout ligner vores test-grid. */
+function packLayout(slugsInOrder: WidgetSlug[]): { instances: WidgetInstance[]; layout: Layout[] } {
+    let x = 0;
+    let y = 0;
 
     const instances: WidgetInstance[] = [];
     const layout: Layout[] = [];
 
-    for (const item of plan) {
-        const id = `${item.slug}-${uid()}`;
-        const size = widgetSizes[item.slug];
-        instances.push({ id, slug: item.slug });
-        layout.push({
-            i: id,
-            x: item.x,
-            y: item.y,
-            w: size.w,
-            h: size.h,
-            static: false,
-        });
+    for (const slug of slugsInOrder) {
+        const size = widgetSizes[slug] ?? { w: 3, h: 1 };
+        const w = Math.min(size.w, COLS);
+        const h = Math.max(1, size.h || 1);
+
+        if (x + w > COLS) {
+            // ny række
+            x = 0;
+            // næste ledige y = max y+h fra eksisterende i rækken
+            y = layout.reduce((acc, l) => Math.max(acc, l.y + l.h), 0);
+        }
+
+        const id = `${slug}-${uid()}`;
+        instances.push({ id, slug });
+        layout.push({ i: id, x, y, w, h, static: false });
+        x += w;
     }
 
     return { instances, layout };
+}
+
+// Seed: Default dashboard (Free) i en rækkefølge der ligner testens visning
+function seedDefault(): { instances: WidgetInstance[]; layout: Layout[] } {
+    const FREE_DEFAULT: WidgetSlug[] = [
+        // ræk.1 (12): 3 + 3 + 3 + 3
+        "successRate", "tradesCount", "riskReward", "accountGrowth",
+        // ræk.2 (12): 4 + 3 + 4 (11 → tæt nok, næste hopper op)
+        "profitLoss", "consistency", "drawdown",
+        // ræk.3 (12): 3 + 3 + 3 + 3
+        "sessionPerformance", "streaks", "welcome", "todaysTrades",
+        // ræk.4 (12): 6 + 6
+        "newsList", "upcomingNews",
+        // ræk.5
+        "tradingGoals",
+    ];
+    return packLayout(FREE_DEFAULT);
 }
 
 function loadFromLocalStorage():
     | { instances: WidgetInstance[]; layout: Layout[] }
     | null {
     if (typeof window === "undefined") return null;
-
     try {
         const v = localStorage.getItem(LS_KEYS.version);
         if (v !== LS_VERSION) return null;
@@ -97,14 +108,17 @@ function loadFromLocalStorage():
     }
 }
 
-function saveToLocalStorage(
-    instances: WidgetInstance[],
-    layout: Layout[]
-) {
+function saveToLocalStorage(instances: WidgetInstance[], layout: Layout[]) {
     if (typeof window === "undefined") return;
     localStorage.setItem(LS_KEYS.version, LS_VERSION);
     localStorage.setItem(LS_KEYS.widgets, JSON.stringify(instances));
     localStorage.setItem(LS_KEYS.layout, JSON.stringify(layout));
+}
+
+/** RGL item-højde = h*rowHeight + (h-1)*marginY  → vend den om for at få h. */
+function rowsNeededForHeight(px: number): number {
+    const unit = ROW_HEIGHT + MARGIN[1];
+    return Math.max(1, Math.ceil((px + MARGIN[1]) / unit)); // lille buffer
 }
 
 export default function DashboardPage() {
@@ -117,6 +131,10 @@ export default function DashboardPage() {
     // Modal open/close
     const [customizeOpen, setCustomizeOpen] = useState(false);
 
+    // Hydration-safe gate (Stats render kun efter mount pga. demo-randoms)
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => setMounted(true), []);
+
     // throttle gemning
     const saveTimer = useRef<number | null>(null);
     const scheduleSave = (nextInstances: WidgetInstance[], nextLayout: Layout[]) => {
@@ -124,7 +142,7 @@ export default function DashboardPage() {
         saveTimer.current = window.setTimeout(() => {
             saveToLocalStorage(nextInstances, nextLayout);
             saveTimer.current = null;
-        }, 400);
+        }, 250);
     };
 
     // initial load/seed
@@ -139,12 +157,67 @@ export default function DashboardPage() {
         }
     }, []);
 
-    // layout change handler (live) — drag/resize er deaktiveret i live-grid
+    // Map for hurtig opslag
+    const instanceById = useMemo(() => {
+        const m = new Map<string, WidgetInstance>();
+        for (const w of instances) m.set(w.id, w);
+        return m;
+    }, [instances]);
+
+    // ===== AUTO-FIT HØJDE (ResizeObserver) =====
+    const roRef = useRef<ResizeObserver | null>(null);
+
+    useEffect(() => {
+        if (layout.length === 0) return;
+
+        if (roRef.current) roRef.current.disconnect();
+        const ro = new ResizeObserver((entries) => {
+            let changed = false;
+            const nextLayout = [...layout];
+
+            entries.forEach((entry) => {
+                const contentEl = entry.target as HTMLElement;
+                const cellEl = contentEl.closest<HTMLElement>("[data-grid-id]");
+                if (!cellEl) return;
+                const id = cellEl.getAttribute("data-grid-id");
+                if (!id) return;
+
+                const heightPx = entry.contentRect.height;
+                const needed = rowsNeededForHeight(heightPx);
+                const idx = nextLayout.findIndex((l) => l.i === id);
+                if (idx >= 0 && nextLayout[idx].h !== needed) {
+                    nextLayout[idx] = { ...nextLayout[idx], h: needed };
+                    changed = true;
+                }
+            });
+
+            if (changed) {
+                setState((prev) => {
+                    const nextState = { instances: prev.instances, layout: nextLayout };
+                    scheduleSave(nextState.instances, nextState.layout);
+                    return nextState;
+                });
+            }
+        });
+
+        layout.forEach((l) => {
+            const el = document.querySelector<HTMLElement>(
+                `[data-grid-id="${l.i}"] > .tt-grid-content`
+            );
+            if (el) ro.observe(el);
+        });
+
+        roRef.current = ro;
+        return () => ro.disconnect();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [layout.map((l) => l.i).join(",")]);
+
+    // layout change handler (live)
     const handleLayoutChange = (nextLayout: Layout[]) => {
         setState((prev) => {
-            const next = { instances: prev.instances, layout: nextLayout };
-            scheduleSave(next.instances, next.layout);
-            return next;
+            const nextState = { instances: prev.instances, layout: nextLayout };
+            scheduleSave(nextState.instances, nextState.layout);
+            return nextState;
         });
     };
 
@@ -176,22 +249,43 @@ export default function DashboardPage() {
         saveToLocalStorage(seeded.instances, seeded.layout);
     };
 
-    // Map for hurtig opslag
-    const instanceById = useMemo(() => {
-        const m = new Map<string, WidgetInstance>();
-        for (const w of instances) m.set(w.id, w);
-        return m;
-    }, [instances]);
+    // Overlay til stats (for lock/remove)
+    const StatsOverlay = ({
+                              id,
+                              isLocked,
+                              onRemove,
+                              onToggleLock,
+                          }: {
+        id: string;
+        isLocked: boolean;
+        onRemove: () => void;
+        onToggleLock: () => void;
+    }) => (
+        <div className="pointer-events-none absolute right-2 top-2 z-10 opacity-0 transition group-hover:opacity-100">
+            <div className="flex gap-1 pointer-events-auto">
+                <button
+                    type="button"
+                    onClick={onToggleLock}
+                    className="px-2 py-1 rounded-md text-xs border border-neutral-600 text-neutral-200 hover:bg-neutral-800"
+                    title={isLocked ? "Lås op" : "Lås"}
+                >
+                    {isLocked ? "🔒" : "🔓"}
+                </button>
+                <button
+                    type="button"
+                    onClick={onRemove}
+                    className="px-2 py-1 rounded-md text-xs border border-red-600 text-red-200 hover:bg-red-900/40"
+                    title="Fjern widget"
+                >
+                    ✕
+                </button>
+            </div>
+        </div>
+    );
 
-    // Når modal trykker "Færdig" → apply staged → live
-    const handleCustomizeSave = (
-        stagedInstances: WidgetInstance[],
-        stagedLayout: Layout[]
-    ) => {
-        setState({ instances: stagedInstances, layout: stagedLayout });
-        saveToLocalStorage(stagedInstances, stagedLayout);
-        setCustomizeOpen(false);
-    };
+    const StatsSkeleton = () => (
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900/30 h-[170px] animate-pulse" />
+    );
 
     return (
         <div className="tt-dashboard min-h-screen p-4">
@@ -219,18 +313,19 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* Hint: live-grid er altid låst */}
             <div className="mb-3 text-xs text-neutral-400">
                 Layout er låst. Klik <span className="text-neutral-200">Tilpas layout</span> for at ændre widget-placering.
             </div>
 
-            <div className="mx-auto w-full max-w-7xl">
+            {/* Fuldbredde (samme som test) */}
+            <div className="w-full">
                 <RGL
                     className="layout"
                     layout={layout}
-                    cols={12}
-                    rowHeight={72}
-                    margin={[10, 10]}
+                    cols={COLS}
+                    rowHeight={ROW_HEIGHT}
+                    margin={MARGIN}
+                    containerPadding={CONTAINER_PADDING}
                     compactType={null}
                     preventCollision={true}
                     isBounded={false}
@@ -244,18 +339,42 @@ export default function DashboardPage() {
                         const inst = instanceById.get(l.i);
                         const slug = inst?.slug ?? "filler";
                         const spec = getWidgetSpec(slug);
+                        const isStats = spec.category === "Stats";
+                        const content = spec.component({ instanceId: l.i });
 
                         return (
-                            <div key={l.i}>
-                                <WidgetChrome
-                                    title={spec.title}
-                                    helpText={spec.description}
-                                    isLocked={!!l.static}
-                                    onRemove={() => removeWidget(l.i)}
-                                    onToggleLock={() => toggleLock(l.i)}
-                                >
-                                    {spec.component({ instanceId: l.i })}
-                                </WidgetChrome>
+                            <div
+                                key={l.i}
+                                data-grid-id={l.i}
+                                className={isStats ? "relative group" : undefined}
+                            >
+                                <div className="tt-grid-content">
+                                    {isStats ? (
+                                        mounted ? (
+                                            <>
+                                                <StatsOverlay
+                                                    id={l.i}
+                                                    isLocked={!!l.static}
+                                                    onRemove={() => removeWidget(l.i)}
+                                                    onToggleLock={() => toggleLock(l.i)}
+                                                />
+                                                {content}
+                                            </>
+                                        ) : (
+                                            <StatsSkeleton />
+                                        )
+                                    ) : (
+                                        <WidgetChrome
+                                            title={spec.title}
+                                            helpText={spec.description}
+                                            isLocked={!!l.static}
+                                            onRemove={() => removeWidget(l.i)}
+                                            onToggleLock={() => toggleLock(l.i)}
+                                        >
+                                            {content}
+                                        </WidgetChrome>
+                                    )}
+                                </div>
                             </div>
                         );
                     })}
@@ -266,7 +385,10 @@ export default function DashboardPage() {
             <CustomizeLayoutModal
                 open={customizeOpen}
                 onClose={() => setCustomizeOpen(false)}
-                onSave={(instances, layout) => handleCustomizeSave(instances, layout)}
+                onSave={(instances, layout) => {
+                    setState({ instances, layout });
+                    saveToLocalStorage(instances, layout);
+                }}
             />
         </div>
     );
