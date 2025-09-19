@@ -38,6 +38,10 @@ import TradeDurationWidget from "./widgets/TradeDurationWidget";
 import PerformanceVsExpectancyWidget from "./widgets/PerformanceVsExpectancyWidget";
 import RiskPerTradeWidget from "./widgets/RiskPerTradeWidget";
 import ConsistencyWidget from "./widgets/ConsistencyWidget";
+import TodaysTradesWidget from "./widgets/TodaysTradesWidget"; // ← NY
+import UnnamedTradesWidget from "./widgets/UnnamedTradesWidget";
+
+
 
 // ---------- Registry ----------
 export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
@@ -212,15 +216,16 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
         description: "Åbne og nyeste handler i dag",
         category: "Kerne",
         defaultSize: widgetSizes.todaysTrades,
-        component: P("Dagens trades"),
+        component: ({ instanceId }) => <TodaysTradesWidget instanceId={instanceId} />, // ← OPDATERET
     },
+
     unnamedTrades: {
         slug: "unnamedTrades",
         title: "Unavngivne trades",
         description: "Hurtig tagging/navngivning af trades",
         category: "Kerne",
-        defaultSize: widgetSizes.unnamedTrades,
-        component: P("Unavngivne trades"),
+        defaultSize: widgetSizes.unnamedTrades, // eksisterer forhåbentlig – ellers lav fx { w: 6, h: 3 }
+        component: ({ instanceId }) => <UnnamedTradesWidget instanceId={instanceId} />,
     },
 
     /* -------- :credit_card: Konti & Risiko -------- */

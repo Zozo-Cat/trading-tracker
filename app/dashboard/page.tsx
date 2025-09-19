@@ -16,7 +16,7 @@ const RGL = WidthProvider(GridLayout);
 // ===== Grid constants (matcher test-look) =====
 const COLS = 12;
 const ROW_HEIGHT = 72;
-const MARGIN: [number, number] = [16, 16];         // = gap-4
+const MARGIN: [number, number] = [16, 16]; // = gap-4
 const CONTAINER_PADDING: [number, number] = [0, 0]; // ingen indre padding
 
 // === LocalStorage keys (versioneret) ===
@@ -29,7 +29,7 @@ const LS_KEYS = {
 
 // === Typer ===
 type WidgetInstance = {
-    id: string;     // stable id = layout.i
+    id: string; // stable id = layout.i
     slug: WidgetSlug;
 };
 
@@ -37,7 +37,9 @@ type WidgetInstance = {
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 /** Pak widgets venstre→højre i rækker á 12 kolonner, så default layout ligner vores test-grid. */
-function packLayout(slugsInOrder: WidgetSlug[]): { instances: WidgetInstance[]; layout: Layout[] } {
+function packLayout(
+    slugsInOrder: WidgetSlug[]
+): { instances: WidgetInstance[]; layout: Layout[] } {
     let x = 0;
     let y = 0;
 
@@ -69,13 +71,22 @@ function packLayout(slugsInOrder: WidgetSlug[]): { instances: WidgetInstance[]; 
 function seedDefault(): { instances: WidgetInstance[]; layout: Layout[] } {
     const FREE_DEFAULT: WidgetSlug[] = [
         // ræk.1 (12): 3 + 3 + 3 + 3
-        "successRate", "tradesCount", "riskReward", "accountGrowth",
+        "successRate",
+        "tradesCount",
+        "riskReward",
+        "accountGrowth",
         // ræk.2 (12): 4 + 3 + 4 (11 → tæt nok, næste hopper op)
-        "profitLoss", "consistency", "drawdown",
+        "profitLoss",
+        "consistency",
+        "drawdown",
         // ræk.3 (12): 3 + 3 + 3 + 3
-        "sessionPerformance", "streaks", "welcome", "todaysTrades",
+        "sessionPerformance",
+        "streaks",
+        "welcome",
+        "todaysTrades",
         // ræk.4 (12): 6 + 6
-        "newsList", "upcomingNews",
+        "newsList",
+        "upcomingNews",
         // ræk.5
         "tradingGoals",
     ];
@@ -287,6 +298,12 @@ export default function DashboardPage() {
         <div className="rounded-xl border border-neutral-800 bg-neutral-900/30 h-[170px] animate-pulse" />
     );
 
+    // De widgets der skal renderes UDEN WidgetChrome (egen ramme/header)
+    const CHROMELESS_SLUGS = useMemo(
+        () => new Set<WidgetSlug>(["todaysTrades"]),
+        []
+    );
+
     return (
         <div className="tt-dashboard min-h-screen p-4">
             {/* Toolbar */}
@@ -314,7 +331,8 @@ export default function DashboardPage() {
             </div>
 
             <div className="mb-3 text-xs text-neutral-400">
-                Layout er låst. Klik <span className="text-neutral-200">Tilpas layout</span> for at ændre widget-placering.
+                Layout er låst. Klik <span className="text-neutral-200">Tilpas layout</span> for at
+                ændre widget-placering.
             </div>
 
             {/* Fuldbredde (samme som test) */}
@@ -340,16 +358,17 @@ export default function DashboardPage() {
                         const slug = inst?.slug ?? "filler";
                         const spec = getWidgetSpec(slug);
                         const isStats = spec.category === "Stats";
+                        const renderBare = isStats || CHROMELESS_SLUGS.has(slug);
                         const content = spec.component({ instanceId: l.i });
 
                         return (
                             <div
                                 key={l.i}
                                 data-grid-id={l.i}
-                                className={isStats ? "relative group" : undefined}
+                                className={renderBare ? "relative group" : undefined}
                             >
                                 <div className="tt-grid-content">
-                                    {isStats ? (
+                                    {renderBare ? (
                                         mounted ? (
                                             <>
                                                 <StatsOverlay
