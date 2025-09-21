@@ -1,75 +1,66 @@
 "use client";
 
 import { ReactNode } from "react";
+import HelpTip from "./HelpTip";
 
 type Props = {
-    title?: string;
+    title: string;
     helpText?: string;
+    children: ReactNode;
+
+    // Live-dashboard: lad være med at sende disse => ingen lås/X vises.
+    // Customize: send dem, eller sæt showActions=true.
+    showActions?: boolean;
     isLocked?: boolean;
     onRemove?: () => void;
     onToggleLock?: () => void;
-    /** default = normal chrome; bare = render children only (no header/border) */
-    variant?: "default" | "bare";
-    children: ReactNode;
 };
 
-// Small dot for the section title (kept as-is)
-const TitleDot = () => (
-    <span className="inline-block w-2 h-2 rounded-full bg-amber-500 mr-2 align-middle" />
-);
 
 export default function WidgetChrome({
                                          title,
                                          helpText,
+                                         children,
+                                         showActions = false,
                                          isLocked,
                                          onRemove,
                                          onToggleLock,
-                                         variant = "default",
-                                         children,
                                      }: Props) {
-    if (variant === "bare") {
-        // No header, no outer panel — just render the body
-        return <>{children}</>;
-    }
-
     return (
-        <div className="rounded-xl p-4 bg-neutral-900/60 dark:bg-neutral-800/60 border border-neutral-800">
-            {/* Header */}
-            <div className="mb-3 flex items-center justify-between">
+        <div className="rounded-xl p-4 bg-neutral-900/60 dark:bg-neutral-800/60 border border-neutral-800 relative">
+            <div className="tt-widget-header mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <TitleDot />
-                    <h3 className="font-medium">{title}</h3>
-                    {helpText ? (
-                        <span className="text-xs text-neutral-400">{helpText}</span>
-                    ) : null}
+                    <div className="font-medium">{title}</div>
+                    {helpText ? <HelpTip text={helpText} /> : null}
                 </div>
 
-                {/* Actions on hover (as you already have) */}
-                <div className="flex items-center gap-2 opacity-70 hover:opacity-100 transition">
-                    {onToggleLock && (
-                        <button
-                            type="button"
-                            className="p-1 rounded hover:bg-neutral-700"
-                            title={isLocked ? "Lås op" : "Lås"}
-                            onClick={onToggleLock}
-                        >
-                            {isLocked ? "🔒" : "🔓"}
-                        </button>
-                    )}
-                    {onRemove && (
-                        <button
-                            type="button"
-                            className="p-1 rounded hover:bg-neutral-700"
-                            title="Fjern"
-                            onClick={onRemove}
-                        >
-                            ✖
-                        </button>
-                    )}
-                </div>
+                {showActions && (onRemove || onToggleLock) ? (
+                    <div className="flex items-center gap-2">
+                        {typeof onToggleLock === "function" ? (
+                            <button
+                                type="button"
+                                onClick={onToggleLock}
+                                className="px-2 py-1 rounded-md text-xs border border-neutral-600 text-neutral-200 hover:bg-neutral-800"
+                                title={isLocked ? "Lås op" : "Lås"}
+                            >
+                                {isLocked ? "🔒" : "🔓"}
+                            </button>
+                        ) : null}
+
+                        {typeof onRemove === "function" ? (
+                            <button
+                                type="button"
+                                onClick={onRemove}
+                                className="px-2 py-1 rounded-md text-xs border border-red-600 text-red-200 hover:bg-red-900/40"
+                                title="Fjern widget"
+                            >
+                                ✕
+                            </button>
+                        ) : null}
+                    </div>
+                ) : null}
             </div>
 
-            {/* Body */}
             {children}
         </div>
     );

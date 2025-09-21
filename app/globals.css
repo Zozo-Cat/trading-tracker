@@ -70,7 +70,7 @@ hr {
   --tt-accent: #d4af37;
 }
 
-/* Widgets */
+/* Widgets (chrome) */
 .tt-dashboard .tt-widget.chrome {
   background-color: var(--tt-panel);
   border: 1px solid var(--tt-border);
@@ -88,6 +88,26 @@ hr {
 .tt-dashboard .tt-widget-body {
   flex: 1;
   overflow: hidden;
+}
+
+/* --- Global widget-typografi (mindre tekst) --- */
+/* Bruges automatisk, fordi vi wrapper indhold i .tt-grid-content */
+.tt-dashboard .tt-grid-content,
+.tt-dashboard .tt-widget {
+  font-size: 13px;     /* ca. ~text-[13px] */
+  line-height: 1.4;    /* lidt strammere linjeafstand */
+}
+
+/* En standard-titelklasse du kan bruge i widgets */
+.tt-dashboard .tt-title {
+  font-size: 0.95rem;  /* lidt mindre end default text-base */
+  line-height: 1.35;
+}
+
+/* Ekstra kompakt variant til “tunge” widgets (valgfri) */
+.tt-dashboard .tt-compact {
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 /* React-Grid-Layout tweaks */
@@ -111,3 +131,40 @@ hr {
 .tt-dashboard .react-resizable-handle:hover {
   border-bottom-color: var(--tt-accent);
 }
+
+/* =========================
+   Mindre typografi i dashboard-widgets
+   (Scopet → påvirker KUN inde i .tt-dashboard)
+   ========================= */
+
+/* Træk 1 "trin" af størrelsen for almindelige Tailwind-størrelser */
+.tt-dashboard :is(.text-xs)  { font-size: 0.70rem !important; }
+.tt-dashboard :is(.text-sm)  { font-size: 0.80rem !important; }
+.tt-dashboard :is(.text-base){ font-size: 0.90rem !important; }
+.tt-dashboard :is(.text-lg)  { font-size: 1.00rem !important; }
+.tt-dashboard :is(.text-xl)  { font-size: 1.125rem !important; }
+.tt-dashboard :is(.text-2xl) { font-size: 1.25rem !important; }
+.tt-dashboard :is(.text-3xl) { font-size: 1.50rem !important; }
+
+/* Lidt strammere linjeafstand i widgets */
+.tt-dashboard .tt-grid-content,
+.tt-dashboard .tt-widget {
+  line-height: 1.4;
+}
+
+/* Ekstra kompakt variant (frivillig) – sæt className="tt-compact" på en widget root for ét ekstra trin ned */
+.tt-dashboard .tt-compact :is(.text-xs)  { font-size: 0.65rem !important; }
+.tt-dashboard .tt-compact :is(.text-sm)  { font-size: 0.75rem !important; }
+.tt-dashboard .tt-compact :is(.text-base){ font-size: 0.85rem !important; }
+.tt-dashboard .tt-compact :is(.text-lg)  { font-size: 0.95rem !important; }
+.tt-dashboard .tt-compact :is(.text-xl)  { font-size: 1.05rem !important; }
+.tt-dashboard .tt-compact :is(.text-2xl) { font-size: 1.15rem !important; }
+
+/* PeriodToggle: hold teksten på én linje og stram line-height */
+.tt-dashboard .btn-seg { line-height: 1; white-space: nowrap; }
+
+/* Dashboard: sørg for at indholdet opfører sig som et blok-element */
+.tt-dashboard .tt-grid-content { display: block; position: relative; }
+
+/* Sørg for at måle rigtigt */
+.tt-dashboard .tt-grid-content { display: block; position: relative; }
