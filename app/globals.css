@@ -1,10 +1,11 @@
 @import "tailwindcss";
 
-/* Global accent der kan ændres live fra Branding-siden */
+/* =========================
+   Basale tema-variabler
+   ========================= */
 :root {
   --tt-accent: #D4AF37;
 
-  /* Din eksisterende farve-opsætning */
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -16,11 +17,11 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* Mørkt tema der matcher appens look */
+/* Dark – matcher appens look */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #211d1d;   /* var #0a0a0a → matcher appen */
-    --foreground: #E9CC6A;   /* blød “guld” til overskrifter/tekst */
+    --background: #211d1d;
+    --foreground: #E9CC6A;
   }
 }
 
@@ -32,34 +33,26 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Lidt polish */
+/* Kvalitets-of-life */
 ::selection {
   background: color-mix(in oklab, var(--tt-accent) 35%, transparent);
   color: #111;
 }
-
 :focus-visible {
   outline: 2px solid var(--tt-accent);
   outline-offset: 2px;
   border-radius: 8px;
 }
+button, a, input, select, textarea { accent-color: var(--tt-accent); }
+hr { border-color: color-mix(in oklab, var(--tt-accent) 50%, transparent); }
 
-button, a, input, select, textarea {
-  accent-color: var(--tt-accent);
-}
-
-hr {
-  border-color: color-mix(in oklab, var(--tt-accent) 50%, transparent);
-}
-
-/* Små helper-klasser (valgfri, men handy) */
+/* Små helpers */
 .tt-border { border: 1px solid var(--tt-accent); }
 .tt-bg     { background: #1a1717; }
 .tt-chip   { background: var(--tt-accent); color: #211d1d; }
 
 /* =========================
-   Trading Tracker Dashboard
-   (scoped, påvirker KUN dashboard)
+   Trading Tracker Dashboard (scoped)
    ========================= */
 .tt-dashboard {
   --tt-bg: #111111;
@@ -70,8 +63,9 @@ hr {
   --tt-accent: #d4af37;
 }
 
-/* Widgets (chrome) */
-.tt-dashboard .tt-widget.chrome {
+/* Widgets der selv tegner “chrome” */
+.tt-dashboard .tt-widget.chrome,
+.tt-dashboard .tt-widget {
   background-color: var(--tt-panel);
   border: 1px solid var(--tt-border);
   border-radius: 0.75rem; /* xl */
@@ -80,80 +74,67 @@ hr {
   color: var(--tt-text);
 }
 
-/* Drag handle */
+/* Drag handle (når vi senere åbner edit mode) */
 .tt-dashboard .tt-widget-header {
   cursor: move;
   user-select: none;
 }
 
-/* Body fylder resten + må gerne klippe indhold */
+/* Widget-body må gerne fylde resten og klippe indhold */
 .tt-dashboard .tt-widget-body {
   flex: 1 1 auto;
   overflow: hidden;
-  min-height: 0; /* vigtigt for charts/ruller */
+  min-height: 0;
 }
 
-/* --- Global widget-typografi (mindre tekst) --- */
+/* Kompakt, ens typografi i widgets */
 .tt-dashboard .tt-grid-content,
 .tt-dashboard .tt-widget {
   font-size: 13px;
   line-height: 1.4;
 }
+.tt-dashboard .tt-title { font-size: 0.95rem; line-height: 1.35; }
 
-/* En standard-titelklasse du kan bruge i widgets */
-.tt-dashboard .tt-title {
-  font-size: 0.95rem;
-  line-height: 1.35;
-}
+/* Ekstra kompakt variant (valgfri) */
+.tt-dashboard .tt-compact { font-size: 12px; line-height: 1.35; }
 
-/* Ekstra kompakt variant til “tunge” widgets (valgfri) */
-.tt-dashboard .tt-compact {
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-/* React-Grid-Layout tweaks */
-.tt-dashboard .react-grid-item {
-  transition: all 200ms ease;
-}
-
-/* Placeholder ved drag/resize */
+/* React-Grid-Layout polish */
+.tt-dashboard .react-grid-item { transition: all 200ms ease; }
 .tt-dashboard .react-grid-item.react-grid-placeholder {
   background: var(--tt-accent);
   opacity: 0.2;
   border-radius: 0.75rem;
 }
-
 .tt-dashboard .react-resizable-handle {
   z-index: 20;
   background: transparent;
   border-right: 6px solid transparent;
   border-bottom: 6px solid var(--tt-border);
 }
-.tt-dashboard .react-resizable-handle:hover {
-  border-bottom-color: var(--tt-accent);
-}
+.tt-dashboard .react-resizable-handle:hover { border-bottom-color: var(--tt-accent); }
 
 /* =========================
    ENS HØJDE I GRID-CELLER (vigtigt)
    ========================= */
-/* 1) Få første child i hver grid-celle til at fylde 100% */
+/* 1) Første child i hver grid-celle fylder 100% og bliver flex-container */
 .tt-dashboard .react-grid-item > div {
   height: 100%;
   display: flex;
   flex-direction: column;
-  min-height: 0; /* for at undgå overflow i nested flex */
+  min-height: 0;
 }
 
-/* 2) Hvis widgets bruger en .rounded-xl panel-wrapper, så stræk den */
-.tt-dashboard .react-grid-item > div > .rounded-xl {
+/* 2) Har widgetten en .rounded-xl/.tt-widget/.chrome wrapper, så stræk den */
+.tt-dashboard .react-grid-item > div > .rounded-xl,
+.tt-dashboard .react-grid-item > div > .tt-widget,
+.tt-dashboard .react-grid-item > div > .chrome {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
-/* 3) Generisk “chart zone” – kan bruges af alle grafer */
+/* 3) Charts zoner (Recharts/SVG mv.) må gerne udvide sig fleksibelt */
 .tt-dashboard .tt-chart,
 .tt-dashboard .chart-flex,
 .tt-dashboard .tt-widget-body > .chart,
@@ -161,8 +142,6 @@ hr {
   flex: 1 1 auto;
   min-height: 0;
 }
-
-/* 4) Recharts/SVG wrappers må gerne udvide sig fleksibelt */
 .tt-dashboard .recharts-wrapper,
 .tt-dashboard .recharts-responsive-container {
   width: 100% !important;
@@ -171,41 +150,16 @@ hr {
 }
 
 /* =========================
-   Mindre typografi i dashboard-widgets
+   Grid-cell “chrome” uden dobbelt-wrapper
    ========================= */
-
-/* Træk 1 "trin" af størrelsen for almindelige Tailwind-størrelser */
-.tt-dashboard :is(.text-xs)  { font-size: 0.70rem !important; }
-.tt-dashboard :is(.text-sm)  { font-size: 0.80rem !important; }
-.tt-dashboard :is(.text-base){ font-size: 0.90rem !important; }
-.tt-dashboard :is(.text-lg)  { font-size: 1.00rem !important; }
-.tt-dashboard :is(.text-xl)  { font-size: 1.125rem !important; }
-.tt-dashboard :is(.text-2xl) { font-size: 1.25rem !important; }
-.tt-dashboard :is(.text-3xl) { font-size: 1.50rem !important; }
-
-/* Ekstra kompakt variant (frivillig) – sæt className="tt-compact" på en widget root for ét ekstra trin ned */
-.tt-dashboard .tt-compact :is(.text-xs)  { font-size: 0.65rem !important; }
-.tt-dashboard .tt-compact :is(.text-sm)  { font-size: 0.75rem !important; }
-.tt-dashboard .tt-compact :is(.text-base){ font-size: 0.85rem !important; }
-.tt-dashboard .tt-compact :is(.text-lg)  { font-size: 0.95rem !important; }
-.tt-dashboard .tt-compact :is(.text-xl)  { font-size: 1.05rem !important; }
-.tt-dashboard .tt-compact :is(.text-2xl) { font-size: 1.15rem !important; }
-
-/* PeriodToggle: hold teksten på én linje og stram line-height */
-.tt-dashboard .btn-seg { line-height: 1; white-space: nowrap; }
-
-/* Dashboard: sørg for at indholdet opfører sig som et blok-element */
-.tt-dashboard .tt-grid-content { display: block; position: relative; }
-
-/* ===== Ens panel-krom uden dobbelt-wrapper ===== */
 .tt-dashboard .tt-grid-content {
   height: 100%;
   display: block;
+  position: relative;
   border-radius: 0.75rem; /* xl */
 }
 
-/* Hvis widgetten allerede har et eget panel (fx .rounded-xl / .tt-widget /.chrome),
-   så skal grid-cellen være gennemsigtig */
+/* Hvis widgetten TEGNER eget panel → lad cellen være gennemsigtig */
 .tt-dashboard .tt-grid-content:has(.rounded-xl, .tt-widget, .tt-panel, .chrome) {
   background: transparent;
   border: 0;
@@ -216,15 +170,36 @@ hr {
 .tt-dashboard .tt-grid-content:not(:has(.rounded-xl, .tt-widget, .tt-panel, .chrome)) {
   background-color: var(--tt-panel);
   border: 1px solid var(--tt-border);
-  padding: 12px; /* ~p-3 */
+  padding: 12px; /* p-3 */
 }
 
-/* Vis kun top-5 i Tradingplan uden at røre headers/andre elementer */
-.tt-dashboard .tt-only-five li:nth-child(n+6),
-.tt-dashboard .tt-only-five .tt-plan-item:nth-child(n+6) {
-  display: none !important;
-}
+/* =========================
+   Mindre typografi (justér tailwind-klasser i widgets)
+   ========================= */
+.tt-dashboard :is(.text-xs)  { font-size: 0.70rem !important; }
+.tt-dashboard :is(.text-sm)  { font-size: 0.80rem !important; }
+.tt-dashboard :is(.text-base){ font-size: 0.90rem !important; }
+.tt-dashboard :is(.text-lg)  { font-size: 1.00rem !important; }
+.tt-dashboard :is(.text-xl)  { font-size: 1.125rem !important; }
+.tt-dashboard :is(.text-2xl) { font-size: 1.25rem !important; }
+.tt-dashboard :is(.text-3xl) { font-size: 1.50rem !important; }
 
-/* (VIGTIGT) Hvis denne regel findes i din fil et andet sted, SLET den helt:
-   .tt-dashboard .tt-sessions-clean > *:first-child { display: none !important; }
-*/
+/* Ekstra kompakt trin ned */
+.tt-dashboard .tt-compact :is(.text-xs)  { font-size: 0.65rem !important; }
+.tt-dashboard .tt-compact :is(.text-sm)  { font-size: 0.75rem !important; }
+.tt-dashboard .tt-compact :is(.text-base){ font-size: 0.85rem !important; }
+.tt-dashboard .tt-compact :is(.text-lg)  { font-size: 0.95rem !important; }
+.tt-dashboard .tt-compact :is(.text-xl)  { font-size: 1.05rem !important; }
+.tt-dashboard .tt-compact :is(.text-2xl) { font-size: 1.15rem !important; }
+
+/* PeriodToggle: hold teksten på én linje */
+.tt-dashboard .btn-seg { line-height: 1; white-space: nowrap; }
+
+/* Sørg for at grid-content opfører sig fornuftigt ved måling */
+.tt-dashboard .tt-grid-content { display: block; position: relative; }
+
+/* ============================================
+   Bevidst udeladt:
+   - INGEN regler der skjuler første/andet child i widgets.
+   - INGEN globale overflow: auto på celler (vi styrer det i widgets).
+   ============================================ */

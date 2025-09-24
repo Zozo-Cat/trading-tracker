@@ -1,12 +1,9 @@
+// app/dashboard/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { Responsive, WidthProvider } from "react-grid-layout";
-import {
-    WidgetInstance,
-    widgetSizes,
-    WidgetSlug,
-} from "./_components/widgetSizes";
+import { widgetSizes, WidgetSlug } from "./_components/widgetSizes";
 import { widgetRegistry } from "./_components/widgetRegistry";
 import CustomizeLayoutModal from "./_components/CustomizeLayoutModal";
 import DashboardHeader from "./_components/DashboardHeader";
@@ -16,13 +13,13 @@ const ResponsiveGridLayout = WidthProvider(Responsive);
 /* ====== Layout constants ====== */
 const COLS = 12;
 const ROW_HEIGHT = 72;
-/** Horisontal = 16px, Vertikal = 0px (helt tætte rækker) */
+/** Horisontal = 16px, Vertikal = 0px (tætte rækker) */
 const MARGIN: [number, number] = [16, 0];
 /** Bund-padding så sidste række ikke støder på footeren */
 const CONTAINER_PADDING: [number, number] = [0, 24];
 
 /* ===================== LocalStorage (bump VERSION) ====================== */
-const LS_VERSION = "27"; // bump når default ændres
+const LS_VERSION = "32"; // bump for at tvinge reseed
 const LS_KEY_LAYOUT = "tt.dashboard.v2.layout";
 const LS_KEY_WIDGETS = "tt.dashboard.v2.widgets";
 const LS_KEY_VERSION = "tt.dashboard.v2.version";
@@ -37,26 +34,30 @@ export type Layout = {
     static?: boolean;
 };
 
+type WidgetInstance = {
+    id: string;
+    type: WidgetSlug;
+    title?: string;
+};
+
 /** En “row” er et array af “stacks”; hver stack er 1..n widgets ovenpå hinanden i samme kolonne. */
 type Row = WidgetSlug[][];
 
 /* ===================== Seed default (kompakt; ingen mellemrum) ====================== */
 function seedDefaultFree(): { instances: WidgetInstance[]; layout: Layout[] } {
     const rows: Row[] = [
-        // Række 1 — samlet top (h ≈ 5)
-        // Kolonne 1–3: stack så summen ≈ 5. Kolonne 4: Upcoming News (h=5)
+        // Række 1 (≈5 høj)
         [
-            ["successRate", "profitLoss"],           // ca. 2 + 3 = 5
-            ["riskReward", "tradesCount"],           // ca. 2 + 3 = 5
-            ["accountGrowth", "sessionPerformance"], // ca. 2 + 3 = 5
+            ["successRate", "profitLoss"],           // 2 + 3
+            ["riskReward", "tradesCount"],           // 2 + 3
+            ["accountGrowth", "sessionPerformance"], // 2 + 3
             ["upcomingNews"],                        // 5
         ],
-
-        // Række 2 — 8 høj (3 kolonner)
+        // Række 2 (8 høj)
         [
-            ["discipline"],                         // 8
-            ["marketSessions", "unnamedTrades"],    // 4 + 4 = 8
-            ["challenges", "tradingGoals"],         // 4 + 4 = 8
+            ["discipline"],                          // 8
+            ["marketSessions", "unnamedTrades"],     // 4 + 4
+            ["challenges", "tradingGoals"],          // 4 + 4
         ],
     ];
 
@@ -89,7 +90,7 @@ function packRowsWithStacks(
                     y: y + yOffsetInCol,
                     w: size.w,
                     h: size.h,
-                    static: true,
+                    static: true, // låst grid i live-view
                 });
 
                 instances.push({
@@ -144,11 +145,7 @@ export default function DashboardPage() {
 
     return (
         <div className="tt-dashboard p-4 pb-8">
-            {/* Ny header med midt-besked og customization-knap */}
-            <DashboardHeader
-                onCustomize={() => setCustomizeOpen(true)}
-                customizeLabel="Tilpas layout"
-            />
+            <DashboardHeader onCustomize={() => setCustomizeOpen(true)} />
 
             <ResponsiveGridLayout
                 className="layout"

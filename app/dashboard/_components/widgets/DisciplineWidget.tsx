@@ -1,269 +1,157 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import HelpTip from "../HelpTip";
 import PeriodToggle, { PeriodValue } from "../PeriodToggle";
 
-/* =========================
-   Types & localStorage keys
-   ========================= */
+/**
+ * DisciplineWidget (Trading Plan + Score i ét)
+ * - 2 x 4 regler
+ * - Grøn/rød ring med ✓ / ✕
+ * - Emojis til højre
+ * - Dag/Uge/Måned toggle
+ */
 
 type Rule = {
     id: string;
-    text: string;
-    priority?: 1 | 2 | 3;
+    title: string;
+    subtitle?: string;
+    emoji?: string;
+    // 0..1 for hvor ofte reglen holdes i perioden
+    adherence: { day: number; week: number; month: number };
+    // 0..1 for hvor “kritisk” reglen er (bruges i udvælgelse)
+    importance: number;
 };
 
-type RuleEvent = {
-    ruleId: string;
-    type: "kept" | "broken";
-    ts: number;
-    source?: "checklist" | "scorecard" | "journal" | "other";
-    tradeId?: string;
-};
+type Props = { instanceId: string };
 
-const LS_RULES_KEYS = ["tt.tradingPlan.items", "tt.plan.items", "tradingPlan.items"];
-const LS_EVENTS_KEY = "tt.plan.events.v1";
-
-/* =========================
-   Helpers (storage + time)
-   ========================= */
-
-function safeParseJSON<T>(raw: string | null): T | null {
-    if (!raw) return null;
-    try { return JSON.parse(raw) as T; } catch { return null; }
-}
-
-function loadRules(): Rule[] {
-    for (const key of LS_RULES_KEYS) {
-        const parsed = safeParseJSON<any>(localStorage.getItem(key));
-        if (Array.isArray(parsed)) {
-            const rules = parsed
-                .map<Rule>((x: any, i: number) =>
-                    typeof x === "string"
-                        ? { id: String(i), text: x }
-                        : { id: String(x?.id ?? i), text: String(x?.text ?? ""), priority: x?.priority }
-                )
-                .filter((r) => r.text.trim().length > 0);
-            if (rules.length) return rules;
-        }
-    }
-    // fallback
-    return [
-        { id: "r1", text: "Max 3 trades pr. dag" },
-        { id: "r2", text: "Journal-notat inden entry" },
-        { id: "r3", text: "Ingen handler under røde nyheder" },
-        { id: "r4", text: "Flyt SL til BE først efter 1R" },
-        { id: "r5", text: "Kun A-setup efter 11:00" },
-        { id: "r6", text: "Tag profit i zoner — ikke midt i ingenting" },
-        { id: "r7", text: "Ingen revenge trading" },
-        { id: "r8", text: "Følg max-risiko pr. trade" },
-        { id: "r9", text: "Ingen handler de første 5 min efter åben" },
-        { id: "r10", text: "Evaluer plan før luk — scorecard" },
-    ];
-}
-
-function loadEvents(): RuleEvent[] {
-    const arr = safeParseJSON<RuleEvent[]>(localStorage.getItem(LS_EVENTS_KEY));
-    if (!Array.isArray(arr)) return [];
-    return arr
-        .filter((e) => e && typeof e.ruleId === "string" && (e.type === "kept" || e.type === "broken") && typeof e.ts === "number")
-        .sort((a, b) => a.ts - b.ts);
-}
-
-/* Global logger */
-declare global {
-    interface Window {
-        ttLogRuleEvent?: (payload: Omit<RuleEvent, "ts"> & { ts?: number }) => void;
-    }
-}
-
-/* =========================
-   Metrics & ranking
-   ========================= */
-
-const DAY = 24 * 60 * 60 * 1000;
-
-type Metrics = {
-    kept30: number;
-    broken30: number;
-    keptRate30: number;
-    broken7: number;
-    recentScore: number;
-    lastBrokenTs: number | null;
-};
-
-function computeMetrics(rules: Rule[], events: RuleEvent[], now = Date.now()): Record<string, Metrics> {
-    const byRule: Record<string, RuleEvent[]> = {};
-    for (const r of rules) byRule[r.id] = [];
-    for (const e of events) {
-        if (!byRule[e.ruleId]) continue;
-        byRule[e.ruleId].push(e);
-    }
-
-    const res: Record<string, Metrics> = {};
-    for (const r of rules) {
-        const evs = byRule[r.id] ?? [];
-        let kept30 = 0, broken30 = 0, broken7 = 0, recentScore = 0;
-        let lastBrokenTs: number | null = null;
-
-        for (const e of evs) {
-            const age = now - e.ts;
-            if (age <= 30 * DAY) (e.type === "kept" ? kept30++ : broken30++);
-            if (age <= 7 * DAY && e.type === "broken") broken7++;
-            if (e.type === "broken") {
-                const days = age / DAY;
-                recentScore += Math.exp(-days / 7);
-                if (!lastBrokenTs || e.ts > lastBrokenTs) lastBrokenTs = e.ts;
-            }
-        }
-
-        const keptRate30 = kept30 + broken30 > 0 ? kept30 / (kept30 + broken30) : 0;
-        res[r.id] = { kept30, broken30, keptRate30, broken7, recentScore, lastBrokenTs };
-    }
-    return res;
-}
-
-function rankScore(rule: Rule, m: Metrics | undefined) {
-    if (!m) return -1;
-    const priority = (rule.priority ?? 1) / 3;
-    const lowCompliance = 1 - (m.keptRate30 ?? 0);
-    const recency = m.recentScore ?? 0;
-    return 0.55 * recency + 0.30 * lowCompliance + 0.15 * priority;
-}
-
-function pickTop8(rules: Rule[], metrics: Record<string, Metrics>): Rule[] {
-    const list = [...rules].sort((a, b) => rankScore(b, metrics[b.id]) - rankScore(a, metrics[a.id]));
-    return list.slice(0, 8);
-}
-
-/* =========================
-   Periode + compliance
-   ========================= */
-
-function startOfToday() {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return +d;
-}
-
-function windowStart(period: PeriodValue) {
-    const now = Date.now();
-    if (period === "day") return startOfToday();
-    if (period === "week") return now - 7 * DAY;
-    return now - 30 * DAY;
-}
-
-function compliance(events: RuleEvent[], period: PeriodValue) {
-    const from = windowStart(period);
-    let kept = 0, broken = 0;
-    for (const e of events) {
-        if (e.ts < from) continue;
-        if (e.type === "kept") kept++; else broken++;
-    }
-    const pct = kept + broken > 0 ? kept / (kept + broken) : 0;
-    return { kept, broken, pct };
-}
-
-/* =========================
-   UI helpers
-   ========================= */
-
-function StatusIcon({ ok }: { ok: boolean }) {
-    const ringColor = ok ? "rgba(16,185,129,.95)" : "rgba(248,113,113,.95)";
-    const icon = ok
-        ? <path d="M4 9l3 3 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-        : <path d="M5 5l6 6m0-6l-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />;
-
-    return (
-        <div
-            className="flex h-8 w-8 items-center justify-center rounded-full"
-            style={{ border: `2px solid ${ringColor}`, color: ringColor }}
-            aria-hidden
-        >
-            <svg viewBox="0 0 16 16" className="h-5 w-5">{icon}</svg>
-        </div>
-    );
-}
-
-function Ring({ pct, label }: { pct: number; label: string }) {
-    const p = Math.max(0, Math.min(1, pct));
-    const deg = p * 360;
-    const color = p >= 0.85 ? "var(--tt-accent)" : "rgba(16,185,129,.9)";
-    return (
-        <div className="flex items-center gap-3">
-            <div
-                className="relative h-12 w-12 shrink-0 rounded-full"
-                style={{ background: `conic-gradient(${color} ${deg}deg, rgba(255,255,255,.08) 0)` }}
-                aria-label={`${Math.round(p * 100)}%`}
-            >
-                <div className="absolute inset-1 rounded-full bg-neutral-900/60 flex items-center justify-center text-xs">
-                    {Math.round(p * 100)}%
-                </div>
-            </div>
-            <div className="text-sm opacity-90">{label}</div>
-        </div>
-    );
-}
-
-/* =========================
-   Component
-   ========================= */
-
-export default function DisciplineWidget({ instanceId }: { instanceId: string }) {
-    const [rules, setRules] = useState<Rule[]>([]);
-    const [events, setEvents] = useState<RuleEvent[]>([]);
+export default function DisciplineWidget({ instanceId }: Props) {
     const [period, setPeriod] = useState<PeriodValue>("day");
 
-    // Exponér global logger
-    useEffect(() => {
-        if (!window.ttLogRuleEvent) {
-            window.ttLogRuleEvent = (payload) => {
-                const list = loadEvents();
-                list.push({
-                    ruleId: payload.ruleId,
-                    type: payload.type,
-                    ts: payload.ts ?? Date.now(),
-                    source: payload.source ?? "other",
-                    tradeId: payload.tradeId,
-                });
-                localStorage.setItem(LS_EVENTS_KEY, JSON.stringify(list));
-                setEvents(list);
-            };
+    // === Stub: dine typiske team-regler (kan senere komme fra backend/form) ===
+    const allRules = useMemo<Rule[]>(
+        () => [
+            {
+                id: "r1",
+                title: "Maks 1 tab i træk",
+                subtitle: "Stop ved 1 rødt, gå væk i 30 min",
+                emoji: "🛑",
+                adherence: { day: 0.92, week: 0.87, month: 0.84 },
+                importance: 0.95,
+            },
+            {
+                id: "r2",
+                title: "RR ≥ 1.5",
+                subtitle: "Tag kun setups med realiserbar R/R",
+                emoji: "📐",
+                adherence: { day: 0.78, week: 0.74, month: 0.71 },
+                importance: 0.9,
+            },
+            {
+                id: "r3",
+                title: "Ingen revenge-trade",
+                subtitle: "Cool-down 10 min efter tab",
+                emoji: "🧊",
+                adherence: { day: 0.88, week: 0.83, month: 0.8 },
+                importance: 0.96,
+            },
+            {
+                id: "r4",
+                title: "Følg setup tjekliste",
+                subtitle: "Bias, niveau, trigger, stop, mål",
+                emoji: "✅",
+                adherence: { day: 0.82, week: 0.79, month: 0.76 },
+                importance: 0.82,
+            },
+            {
+                id: "r5",
+                title: "Max risiko pr. trade: 0.5%",
+                subtitle: "Skaler ned ved usikkerhed",
+                emoji: "📉",
+                adherence: { day: 0.74, week: 0.71, month: 0.69 },
+                importance: 0.9,
+            },
+            {
+                id: "r6",
+                title: "Ingen handel før nyheder",
+                subtitle: "10 min før/efter high impact",
+                emoji: "📰",
+                adherence: { day: 0.69, week: 0.67, month: 0.66 },
+                importance: 0.78,
+            },
+            {
+                id: "r7",
+                title: "Vent på lukket trigger",
+                subtitle: "Ingen forudindtagede entries",
+                emoji: "⏱️",
+                adherence: { day: 0.81, week: 0.79, month: 0.77 },
+                importance: 0.76,
+            },
+            {
+                id: "r8",
+                title: "Journal efter trade",
+                subtitle: "Navn, setup, følelser, læring",
+                emoji: "📝",
+                adherence: { day: 0.6, week: 0.63, month: 0.65 },
+                importance: 0.7,
+            },
+            {
+                id: "r9",
+                title: "Tag profit i zoner",
+                subtitle: "Skaler ud, flyt SL fornuftigt",
+                emoji: "🎯",
+                adherence: { day: 0.72, week: 0.7, month: 0.68 },
+                importance: 0.74,
+            },
+            {
+                id: "r10",
+                title: "Ingen over-trading",
+                subtitle: "Max 3 trades/dag",
+                emoji: "🚦",
+                adherence: { day: 0.66, week: 0.64, month: 0.62 },
+                importance: 0.82,
+            },
+        ],
+        []
+    );
+
+    // === Udvælg 8 regler: mix af “mest brudte” og “mest overholdte” ===
+    const picked = useMemo(() => {
+        const key = (r: Rule) => r.adherence[period] ?? 0;
+        const byBroken = [...allRules].sort((a, b) => key(a) - key(b)); // lavest adherence først
+        const byKept = [...allRules].sort((a, b) => key(b) - key(a)); // højest adherence først
+
+        const takeBroken = takeUnique(byBroken, 4);
+        const takeKept = takeUnique(byKept, 4, new Set(takeBroken.map((r) => r.id)));
+
+        // Interleave så de “flyder” sammen
+        const out: Rule[] = [];
+        for (let i = 0; i < 4; i++) {
+            if (takeKept[i]) out.push(takeKept[i]);
+            if (takeBroken[i]) out.push(takeBroken[i]);
         }
-    }, []);
+        return out.slice(0, 8);
+    }, [allRules, period]);
 
-    useEffect(() => {
-        setRules(loadRules());
-        setEvents(loadEvents());
-    }, []);
+    // Samlet efterlevelse for de 8 valgte (viser badge-tekst)
+    const adherenceAvg = useMemo(() => {
+        if (!picked.length) return 0;
+        const sum = picked.reduce((s, r) => s + (r.adherence[period] ?? 0), 0);
+        return sum / picked.length;
+    }, [picked, period]);
 
-    const now = Date.now();
-    const metrics = useMemo(() => computeMetrics(rules, events, now), [rules, events, now]);
-    const picked = useMemo(() => pickTop8(rules, metrics), [rules, metrics]);
-    const comp = useMemo(() => compliance(events, period), [events, period]);
-
-    const okMap = useMemo(() => {
-        const from = windowStart(period);
-        const map: Record<string, boolean> = {};
-        for (const r of rules) map[r.id] = true;
-        for (const e of events) {
-            if (e.type === "broken" && e.ts >= from) map[e.ruleId] = false;
-        }
-        return map;
-    }, [events, period, rules]);
-
-    const periodLabel = period === "day" ? "i dag" : period === "week" ? "denne uge" : "denne måned";
+    const adherencePct = Math.round(adherenceAvg * 100);
+    const yay = adherencePct >= 85;
 
     return (
-        <div className="h-full flex flex-col">
+        <div className="h-full rounded-xl border border-neutral-800 bg-neutral-900/60 p-4 flex flex-col">
             {/* Header */}
-            <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="leading-tight">
-                    <div className="text-sm font-semibold opacity-90">Discipline</div>
-                    <div className="text-[11px] opacity-60">Plan + score i én — 8 vigtige regler</div>
+            <div className="flex items-center justify-between gap-3">
+                <div className="text-sm text-neutral-300 flex items-center gap-2">
+                    Trading Plan
+                    <HelpTip text="De vigtigste regler udvalgt ud fra brud/efterlevelse for den valgte periode." />
                 </div>
 
-                {/* Bruger samme komponent som stats-widgets */}
                 <PeriodToggle
                     instanceId={instanceId}
                     slug="discipline"
@@ -272,49 +160,92 @@ export default function DisciplineWidget({ instanceId }: { instanceId: string })
                 />
             </div>
 
-            {/* Hero */}
-            <div className="mb-3 flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900/40 p-3">
-                <Ring
-                    pct={comp.pct}
-                    label={
-                        comp.pct >= 0.85
-                            ? `Yay! Du har fulgt din plan ${Math.round(comp.pct * 100)}% ${periodLabel}.`
-                            : `Husk at holde linjen — ${Math.round(comp.pct * 100)}% ${periodLabel}.`
-                    }
-                />
+            {/* Banner / feedback */}
+            <div
+                className="mt-3 rounded-md border border-neutral-800 bg-neutral-900/50 px-3 py-2 text-sm"
+                role="status"
+            >
+                {yay ? (
+                    <span>
+            🎉 <strong>Yay!</strong> Du har fulgt din plan{" "}
+                        <span className="text-emerald-300">{adherencePct}%</span> i{" "}
+                        {label(period).toLowerCase()}.
+          </span>
+                ) : (
+                    <span>
+            💡 <strong>Husk:</strong> små justeringer slår store spring. Fokuser på 1–2
+            regler ad gangen — du er på <span className="text-yellow-300">{adherencePct}%</span> i{" "}
+                        {label(period).toLowerCase()}.
+          </span>
+                )}
             </div>
 
-            {/* 2×4 regler — kun ring-ikonet til venstre */}
-            <div className="grid grid-cols-2 gap-2 md:gap-3 min-h-0 flex-1">
-                {picked.slice(0, 8).map((r) => {
-                    const m = metrics[r.id];
-                    const ok = okMap[r.id] ?? true;
-                    const keptPct = Math.round((m?.keptRate30 ?? 0) * 100);
+            {/* 2 × 4 grid (ingen scroll) */}
+            <div className="mt-4 grid grid-cols-2 gap-3 flex-1">
+                {picked.map((r) => {
+                    const kept = (r.adherence[period] ?? 0) >= 0.75; // enkel tærskel for ✓/✕ pr. periode
                     return (
                         <div
-                            key={r.id + "_" + instanceId}
-                            className="rounded-md border border-neutral-800 bg-neutral-900/35 p-2 md:p-3 hover:border-neutral-700"
+                            key={r.id}
+                            className="rounded-md border border-neutral-800 bg-neutral-900/40 px-3 py-2 flex items-center justify-between"
+                            style={{ minHeight: 56 }}
                         >
-                            <div className="flex min-h-[56px] items-center justify-start gap-3">
-                                <StatusIcon ok={ok} />
-                                <div>
-                                    <div className="text-[13px] leading-5 opacity-95">{r.text}</div>
-                                    <div className="text-[11px] opacity-65">
-                                        30d: {keptPct}% overholdt · 7d brud: {m?.broken7 ?? 0}
-                                    </div>
+                            {/* Venstre: ring + tekst */}
+                            <div className="flex items-center gap-3 min-w-0">
+                                <Ring kept={kept} />
+                                <div className="min-w-0">
+                                    <div className="font-medium text-sm truncate">{r.title}</div>
+                                    {r.subtitle && (
+                                        <div className="text-xs text-neutral-400 truncate">
+                                            {r.subtitle}
+                                        </div>
+                                    )}
                                 </div>
+                            </div>
+
+                            {/* Højre: emoji */}
+                            <div className="ml-3 shrink-0 text-2xl leading-none select-none">
+                                {r.emoji ?? "⭐"}
                             </div>
                         </div>
                     );
                 })}
             </div>
-
-            {/* Links */}
-            <div className="mt-3 flex items-center justify-end gap-3 text-[11px] opacity-70">
-                <a href="#" className="underline underline-offset-2 hover:opacity-100">Åbn fuld plan</a>
-                <span>·</span>
-                <a href="#" className="underline underline-offset-2 hover:opacity-100">Se afvigelser</a>
-            </div>
         </div>
+    );
+}
+
+/* ============= UI helpers ============= */
+
+function label(p: PeriodValue) {
+    if (p === "day") return "I dag";
+    if (p === "week") return "Ugen";
+    return "Måneden";
+}
+
+function takeUnique<T extends { id: string }>(arr: T[], n: number, seen = new Set<string>()) {
+    const out: T[] = [];
+    for (const x of arr) {
+        if (out.length >= n) break;
+        if (seen.has(x.id)) continue;
+        seen.add(x.id);
+        out.push(x);
+    }
+    return out;
+}
+
+/** Grøn/rød ring med ✓ / ✕ — samme visuelle vægt som to linjer tekst */
+function Ring({ kept }: { kept: boolean }) {
+    return (
+        <span
+            className={`inline-flex items-center justify-center rounded-full border ${
+                kept ? "border-emerald-500 text-emerald-400" : "border-red-500 text-red-400"
+            }`}
+            style={{ width: 28, height: 28, fontSize: 16, lineHeight: 1 }}
+            aria-label={kept ? "Fulgt" : "Brudt"}
+            title={kept ? "Fulgt" : "Brudt"}
+        >
+      {kept ? "✓" : "✕"}
+    </span>
     );
 }

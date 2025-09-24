@@ -5,26 +5,30 @@ import { useRouter } from "next/navigation";
 import { Edit3 } from "lucide-react";
 
 type Props = {
-    onCustomize?: () => void;
-    customizeLabel?: string; // fx "Tilpas layout"
+    title?: string;            // fx "Dashboard"
+    onCustomize?: () => void;  // kaldes når man klikker på knappen
+    customizeLabel?: string;   // default: "Tilpas layout"
+    cycleMs?: number;          // skift-hastighed for banner (default 8000 ms)
 };
 
 export default function DashboardHeader({
+                                            title = "Dashboard",
                                             onCustomize,
                                             customizeLabel = "Tilpas layout",
+                                            cycleMs = 8000,
                                         }: Props) {
-    // Skift besked hver 8 sek. + fade
+    // Skift besked hver N sekunder + fade
     const [tick, setTick] = useState(0);
     useEffect(() => {
-        const t = setInterval(() => setTick((v) => v + 1), 8000);
+        const t = setInterval(() => setTick((v) => v + 1), cycleMs);
         return () => clearInterval(t);
-    }, []);
+    }, [cycleMs]);
 
+    // Hent evt. fornavn / reminder fra localStorage (fallbacks hvis intet sat)
     const firstName = useMemo(() => {
         if (typeof window === "undefined") return "Trader";
         return localStorage.getItem("tt_firstName") || "Trader";
     }, []);
-
     const dailyReminder = useMemo(() => {
         if (typeof window === "undefined")
             return "Risiko først. Trim størrelsen hvis du er i tvivl.";
@@ -34,14 +38,15 @@ export default function DashboardHeader({
         );
     }, []);
 
+    // To beskeder der kryds-fader
     const msgA = `Goddag, ${firstName} 👋 — små forbedringer hver dag slår store spring.`;
     const msgB = dailyReminder;
-
     const showA = tick % 2 === 0;
 
     const router = useRouter();
     const handleCustomize = () => {
         if (onCustomize) return onCustomize();
+        // fallback: sæt query param (hvis du vil fange den i page.tsx)
         router.push("/dashboard?edit=1");
     };
 
@@ -53,10 +58,10 @@ export default function DashboardHeader({
                     className="text-2xl md:text-3xl font-semibold tracking-tight"
                     style={{ color: "var(--tt-accent)" }}
                 >
-                    Dashboard
+                    {title}
                 </h1>
 
-                {/* Midterbanner (skjult på meget små skærme; vises nedenunder i mobil-blok) */}
+                {/* Midterbanner (skjules på små skærme; vises nedenunder i mobil) */}
                 <div className="hidden md:flex flex-1 justify-center">
                     <Banner showA={showA} msgA={msgA} msgB={msgB} />
                 </div>
@@ -85,7 +90,7 @@ export default function DashboardHeader({
 function Banner({ showA, msgA, msgB }: { showA: boolean; msgA: string; msgB: string }) {
     return (
         <div className="relative w-full max-w-2xl">
-            {/* Basis-krom: accent-venstrekant + gradient + shadow */}
+            {/* Accent-venstrekant + gradient + subtil shadow */}
             <div className="rounded-lg border border-neutral-800 bg-gradient-to-br from-neutral-900/80 to-neutral-800/60 shadow-[0_0_0_1px_rgba(0,0,0,0.2)]">
                 <div className="flex">
                     <div
@@ -113,7 +118,7 @@ function Banner({ showA, msgA, msgB }: { showA: boolean; msgA: string; msgB: str
                             {msgB}
                         </p>
 
-                        {/* Spacer for højde så teksten ikke “hopper” */}
+                        {/* Spacer for stabil højde */}
                         <span className="invisible text-base md:text-lg font-semibold">
               {msgA.length > msgB.length ? msgA : msgB}
             </span>
