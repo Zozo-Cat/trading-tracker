@@ -1,7 +1,9 @@
-// app/dashboard/_components/widgetSizes.ts
+/* ========= Widget sizes =========
+   w = kolonne-bredde (af 12)
+   h = "grid-rows" (bruges af react-grid-layout rowHeight)
+*/
 
 export type WidgetSlug =
-// Stats
     | "successRate"
     | "profitLoss"
     | "tradesCount"
@@ -15,40 +17,40 @@ export type WidgetSlug =
     | "setupDistribution"
     | "newsVsNoNews"
     | "performanceVsExpectancy"
-    | "profitLossWidget"
     | "riskPerTrade"
-    | "riskRewardWidget"
-    | "sessionPerf"
     | "tradeDuration"
-    | "tradesCountWidget"
+    | "consistency"
     | "volatility"
-    // Kerne
-    | "tradingPlan"
-    | "scorecard"
-    | "todaysTrades"
+    // Core
+    | "dailyChecklist"
+    // "tradingPlan" fjernet
+    // "scorecard"   fjernet
     | "unnamedTrades"
-    | "tradingJournalShortcut"
-    // Konti & Risiko
+    | "todaysTrades"
+    | "journalShortcut"
+    | "discipline"
+    // Accounts & risk
     | "accounts"
     | "challenges"
-    // Nyheder & Kalender
+    // News & calendar
     | "newsList"
     | "upcomingNews"
-    // Mål & Fremdrift
+    | "marketSessions"
+    // Goals
     | "tradingGoals"
-    // Mentor & Community
+    // Mentor / community
     | "mentorFeedback"
-    | "notificationsCenter"
-    // Personligt
+    | "notifications"
+    // Personal
     | "welcome"
     | "gamification"
     | "dailyReminder"
     | "dailyFocus"
     | "autoInsights"
-    // Community/Team
+    // Community / Team
     | "teamGoals"
     | "teamChallenges"
-    | "leaderboardSnapshot"
+    | "leaderboard"
     | "myTeamRank"
     | "teamAnnouncements"
     | "teamStreaks"
@@ -59,93 +61,73 @@ export type WidgetSlug =
     | "riskAlerts"
     | "portfolioValue"
     | "pinnedResources"
-    | "upcomingSessions"
-    // Timeline
-    | "sessionsTimeline";
+    | "upcomingSessions";
 
-type Size = {
-    w: number;
-    h: number;
-    minW?: number;
-    maxW?: number;
-    minH?: number;
-    maxH?: number;
-};
+export type Size = { w: number; h: number };
 
-// Ens logik: hvis to widgets har samme h, har de samme pixelhøjde.
-// Lås altid minH/maxH = h (og evt. minW) for at undgå drift.
 export const widgetSizes: Record<WidgetSlug, Size> = {
-    /* ===== Stats (top) ===== */
-    successRate:          { w: 3, h: 3, minW: 3, minH: 3, maxH: 3 },
-    riskReward:           { w: 3, h: 3, minW: 3, minH: 3, maxH: 3 },
-    accountGrowth:        { w: 3, h: 3, minW: 3, minH: 3, maxH: 3 },
-    streaks:              { w: 3, h: 3, minW: 3, minH: 3, maxH: 3 },
+    /* ===== Toprække (stackede kolonner på 3 + upcomingNews) ===== */
+    successRate: { w: 3, h: 2 },
+    profitLoss: { w: 3, h: 3 },
 
-    profitLoss:           { w: 3, h: 2, minW: 3, minH: 2, maxH: 2 },
-    tradesCount:          { w: 3, h: 2, minW: 3, minH: 2, maxH: 2 },
-    sessionPerformance:   { w: 3, h: 2, minW: 3, minH: 2, maxH: 2 },
-    dailyReminder:        { w: 3, h: 2, minW: 3, minH: 2, maxH: 2 },
+    riskReward: { w: 3, h: 2 },
+    tradesCount: { w: 3, h: 3 },
 
-    // (reserve/andre stats – sæt faste størrelser hvis de bruges)
-    expectancy:           { w: 3, h: 3, minW: 3, minH: 3, maxH: 3 },
-    drawdown:             { w: 4, h: 3, minW: 3, minH: 3, maxH: 3 },
-    sharpeSortino:        { w: 4, h: 3, minW: 3, minH: 3, maxH: 3 },
-    setupDistribution:    { w: 4, h: 3, minW: 3, minH: 3, maxH: 3 },
-    newsVsNoNews:         { w: 4, h: 3, minW: 3, minH: 3, maxH: 3 },
-    performanceVsExpectancy: { w: 4, h: 3, minW: 3, minH: 3, maxH: 3 },
-    profitLossWidget:     { w: 3, h: 2, minW: 3, minH: 2, maxH: 2 },
-    riskPerTrade:         { w: 3, h: 2, minW: 3, minH: 2, maxH: 2 },
-    riskRewardWidget:     { w: 3, h: 2, minW: 3, minH: 2, maxH: 2 },
-    sessionPerf:          { w: 3, h: 2, minW: 3, minH: 2, maxH: 2 },
-    tradeDuration:        { w: 3, h: 2, minW: 3, minH: 2, maxH: 2 },
-    tradesCountWidget:    { w: 3, h: 2, minW: 3, minH: 2, maxH: 2 },
-    volatility:           { w: 3, h: 2, minW: 3, minH: 2, maxH: 2 },
+    accountGrowth: { w: 3, h: 2 },
+    sessionPerformance: { w: 3, h: 3 },
 
-    /* ===== Kerne ===== */
-    tradingPlan:          { w: 4, h: 4, minW: 4, minH: 4, maxH: 4 },
-    scorecard:            { w: 4, h: 4, minW: 4, minH: 4, maxH: 4 },
-    todaysTrades:         { w: 6, h: 3, minW: 6, minH: 3, maxH: 3 },
-    unnamedTrades:        { w: 4, h: 3, minW: 4, minH: 3, maxH: 3 },
-    tradingJournalShortcut:{ w: 6, h: 3, minW: 6, minH: 3, maxH: 3 },
+    upcomingNews: { w: 3, h: 5 }, // High Volatility News
 
-    /* ===== Konti & Risiko ===== */
-    accounts:             { w: 4, h: 3, minW: 4, minH: 3, maxH: 3 },
-    challenges:           { w: 4, h: 3, minW: 4, minH: 3, maxH: 3 },
+    /* ===== Anden række (3 kolonner á w=4) ===== */
+    discipline: { w: 4, h: 8 },         // ny combined (Trading Plan + Score)
+    marketSessions: { w: 4, h: 4 },
+    unnamedTrades: { w: 4, h: 4 },
 
-    /* ===== Nyheder & Kalender ===== */
-    newsList:             { w: 4, h: 3, minW: 4, minH: 3, maxH: 3 },
-    upcomingNews:         { w: 4, h: 3, minW: 4, minH: 3, maxH: 3 },
+    challenges: { w: 4, h: 4 },
+    tradingGoals: { w: 4, h: 4 },
 
-    /* ===== Mål & Fremdrift ===== */
-    tradingGoals:         { w: 4, h: 3, minW: 4, minH: 3, maxH: 3 },
+    /* ========== Øvrige widgets (ikke i default seed) ========== */
+    expectancy: { w: 3, h: 3 },
+    drawdown: { w: 3, h: 3 },
+    streaks: { w: 3, h: 3 },
+    sharpeSortino: { w: 3, h: 3 },
+    setupDistribution: { w: 3, h: 4 },
+    newsVsNoNews: { w: 3, h: 3 },
+    performanceVsExpectancy: { w: 3, h: 3 },
+    riskPerTrade: { w: 3, h: 2 },
+    tradeDuration: { w: 3, h: 2 },
+    consistency: { w: 3, h: 3 },
+    volatility: { w: 3, h: 3 },
 
-    /* ===== Mentor & Notifikationer ===== */
-    mentorFeedback:       { w: 4, h: 3, minW: 4, minH: 3, maxH: 3 },
-    notificationsCenter:  { w: 4, h: 3, minW: 4, minH: 3, maxH: 3 },
+    dailyChecklist: { w: 4, h: 4 },
+    todaysTrades: { w: 4, h: 4 },
+    journalShortcut: { w: 4, h: 2 },
 
-    /* ===== Personligt ===== */
-    welcome:              { w: 4, h: 2, minW: 4, minH: 2, maxH: 2 },
-    gamification:         { w: 4, h: 3, minW: 3, minH: 3, maxH: 3 },
-    dailyFocus:           { w: 3, h: 2, minW: 3, minH: 2, maxH: 2 },
-    autoInsights:         { w: 4, h: 3, minW: 4, minH: 3, maxH: 3 },
+    accounts: { w: 4, h: 4 },
 
-    /* ===== Community / Team ===== */
-    teamGoals:            { w: 6, h: 3, minW: 6, minH: 3, maxH: 3 },
-    teamChallenges:       { w: 6, h: 3, minW: 6, minH: 3, maxH: 3 },
-    leaderboardSnapshot:  { w: 6, h: 3, minW: 6, minH: 3, maxH: 3 },
-    myTeamRank:           { w: 6, h: 2, minW: 6, minH: 2, maxH: 2 },
-    teamAnnouncements:    { w: 6, h: 3, minW: 6, minH: 3, maxH: 3 },
-    teamStreaks:          { w: 6, h: 2, minW: 6, minH: 2, maxH: 2 },
-    teamBadgesFeed:       { w: 6, h: 2, minW: 6, minH: 2, maxH: 2 },
-    communitySignals:     { w: 6, h: 3, minW: 6, minH: 3, maxH: 3 },
+    newsList: { w: 4, h: 4 },
 
-    /* ===== Bonus ===== */
-    signalPerformance:    { w: 4, h: 3, minW: 4, minH: 3, maxH: 3 },
-    riskAlerts:           { w: 4, h: 2, minW: 4, minH: 2, maxH: 2 },
-    portfolioValue:       { w: 4, h: 2, minW: 4, minH: 2, maxH: 2 },
-    pinnedResources:      { w: 4, h: 2, minW: 4, minH: 2, maxH: 2 },
-    upcomingSessions:     { w: 4, h: 2, minW: 4, minH: 2, maxH: 2 },
+    mentorFeedback: { w: 4, h: 4 },
+    notifications: { w: 4, h: 3 },
 
-    /* ===== Sessions timeline ===== */
-    sessionsTimeline:     { w: 4, h: 2, minW: 4, minH: 2, maxH: 2 },
+    welcome: { w: 4, h: 2 },
+    gamification: { w: 4, h: 3 },
+    dailyReminder: { w: 4, h: 2 },
+    dailyFocus: { w: 4, h: 2 },
+    autoInsights: { w: 4, h: 3 },
+
+    teamGoals: { w: 4, h: 4 },
+    teamChallenges: { w: 4, h: 4 },
+    leaderboard: { w: 4, h: 4 },
+    myTeamRank: { w: 4, h: 3 },
+    teamAnnouncements: { w: 4, h: 3 },
+    teamStreaks: { w: 4, h: 3 },
+    teamBadgesFeed: { w: 4, h: 3 },
+    communitySignals: { w: 4, h: 4 },
+
+    signalPerformance: { w: 4, h: 4 },
+    riskAlerts: { w: 4, h: 3 },
+    portfolioValue: { w: 4, h: 3 },
+    pinnedResources: { w: 4, h: 3 },
+    upcomingSessions: { w: 4, h: 3 },
 };

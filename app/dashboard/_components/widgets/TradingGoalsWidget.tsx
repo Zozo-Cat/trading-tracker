@@ -1,104 +1,63 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { seededRng } from "../seededRandom";
 
-type Goal = {
-    id: string;
-    title: string;
-    progress: number; // 0..1
-    dueISO: string;   // absolut dato, vises i lokal TZ
-    scope: "Global" | "Scalping" | "Swing";
-};
-
 export default function TradingGoalsWidget({ instanceId }: { instanceId: string }) {
-    const [mounted, setMounted] = useState(false);
-    useEffect(() => setMounted(true), []);
-
     const rng = useMemo(() => seededRng(`${instanceId}::goals`), [instanceId]);
-
-    const goals = useMemo<Goal[]>(() => {
-        // Fast UTC-anker så data er deterministiske
-        const BASE = Date.UTC(2024, 0, 1, 0, 0, 0);
-        // lav 3 mål
-        const mk = (i: number, title: string, scope: Goal["scope"]) => {
-            const pct = Math.min(1, Math.max(0, (rng() * 0.6) + 0.2)); // 20–80%
-            const days = 7 + Math.floor(rng() * 21); // 1–4 uger
-            const due = new Date(BASE + (i + 1) * days * 24 * 60 * 60 * 1000).toISOString();
-            return { id: `g${i}`, title, progress: pct, dueISO: due, scope } as Goal;
-        };
-        return [
-            mk(0, "Følg tradingplan i 14 dage", "Global"),
-            mk(1, "Maks 1 tabt trade i træk", "Scalping"),
-            mk(2, "Min. R/R ≥ 1:2 gennemsnit", "Swing"),
-        ];
-    }, [rng]);
-
-    if (!mounted) return <Skeleton />;
+    const goals = useMemo(() => seedGoals(rng), [rng]).slice(0, 3); // max 3 for kompakt h=4
 
     return (
-        <div className="space-y-3">
-            {goals.map((g) => (
-                <GoalRow key={g.id} goal={g} />
-            ))}
+        <div className="h-full flex flex-col min-h-0 overflow-hidden" id={`${instanceId}-goals`}>
+            {/* Header */}
+            <div className="flex items-center justify-between shrink-0">
+                <div className="font-medium">Trading mål</div>
+            </div>
 
-            <div className="flex items-center gap-2 pt-1">
-                <a
-                    href="/maal"
-                    className="text-xs px-2 py-1 rounded-md border border-neutral-700 text-neutral-200 hover:bg-neutral-800"
-                >
+            {/* Kompakt liste — ingen scroll */}
+            <div className="mt-3 space-y-2">
+                {goals.map((g) => (
+                    <GoalRow key={g.id} {...g} />
+                ))}
+            </div>
+
+            {/* CTA i bunden */}
+            <div className="mt-3 flex items-center justify-end gap-2 shrink-0">
+                <button className="px-2.5 py-1.5 rounded-md text-xs border border-neutral-600 text-neutral-200 hover:bg-neutral-800">
                     Vis alle mål
-                </a>
-                <a
-                    href="/maal/ny"
-                    className="text-xs px-2 py-1 rounded-md border border-emerald-600 text-emerald-200 hover:bg-emerald-900/30"
-                >
+                </button>
+                <button className="px-2.5 py-1.5 rounded-md text-xs border border-emerald-600 text-emerald-200 hover:bg-emerald-900/30">
                     Opret mål
-                </a>
+                </button>
             </div>
         </div>
     );
 }
 
-function GoalRow({ goal }: { goal: Goal }) {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-    const due = new Date(goal.dueISO);
-    const dateStr = new Intl.DateTimeFormat("da-DK", {
-        timeZone: tz,
-        day: "2-digit",
-        month: "2-digit",
-    }).format(due);
-
-    const pct = Math.round(goal.progress * 100);
-    const bar = Math.max(4, Math.min(100, pct));
-
-    const color =
-        pct >= 80 ? "bg-emerald-500"
-            : pct >= 50 ? "bg-amber-400"
-                : "bg-red-500";
-
+function GoalRow({
+                     title, pct, tone = "warn", meta,
+                 }: { title: string; pct: number; tone?: "neg" | "warn" | "ok"; meta?: string }) {
+    const clampPct = Math.max(0, Math.min(100, Math.round(pct)));
+    const bar = tone === "ok" ? "bg-emerald-500" : tone === "neg" ? "bg-red-500" : "bg-amber-500";
     return (
-        <div className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-3">
+        <div className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-2">
             <div className="flex items-center justify-between gap-2">
-                <div className="truncate">
-                    <div className="font-medium truncate">{goal.title}</div>
-                    <div className="text-xs text-neutral-400">Scope: {goal.scope} • Deadline: {dateStr}</div>
-                </div>
-                <div className="text-sm tabular-nums text-neutral-200">{pct}%</div>
+                <div className="font-medium text-sm text-neutral-100 truncate">{title}</div>
+                <div className="text-xs text-neutral-400">{clampPct}%</div>
             </div>
-            <div className="h-2 mt-2 rounded bg-neutral-800/70 overflow-hidden">
-                <div className={`h-full ${color}`} style={{ width: `${bar}%` }} />
+            {meta ? <div className="text-[11px] text-neutral-400 mt-0.5">{meta}</div> : null}
+            <div className="mt-1.5 h-2 rounded bg-neutral-800 overflow-hidden">
+                <div className={`h-2 ${bar}`} style={{ width: `${clampPct}%` }} />
             </div>
         </div>
     );
 }
 
-function Skeleton() {
-    return (
-        <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-16 rounded-lg border border-neutral-800 bg-neutral-900/40 animate-pulse" />
-            ))}
-        </div>
-    );
+function seedGoals(rng: () => number) {
+    return [
+        { id: "g1", title: "Følg tradingplan i 14 dage", pct: 34, tone: "neg" as const,  meta: "Scope: Global • Deadline: 27.01" },
+        { id: "g2", title: "Maks 1 tabt trade i træk",    pct: 67, tone: "warn" as const, meta: "Scope: Scalping • Deadline: 14.02" },
+        { id: "g3", title: "Min. R/R ≥ 1.2 gennemsnit",   pct: 52, tone: "warn" as const, meta: "Scope: Swing • Deadline: 10.03" },
+        { id: "g4", title: "Ingen trade uden journal-notat", pct: 80, tone: "ok"  as const, meta: "Scope: Global • Løbende" },
+    ];
 }
