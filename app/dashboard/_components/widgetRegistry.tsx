@@ -23,12 +23,15 @@ import ConsistencyWidget from "./widgets/ConsistencyWidget";
 import VolatilityWidget from "./widgets/VolatilityWidget";
 
 /* Kerne */
-import TradingPlanWidget from "./widgets/TradingPlanWidget";
 import DailyChecklistWidget from "./widgets/DailyChecklistWidget";
-import ScorecardWidget from "./widgets/ScorecardWidget";
+// TradingPlanWidget — fjernet
+// ScorecardWidget   — fjernet
 import UnnamedTradesWidget from "./widgets/UnnamedTradesWidget";
 import TodaysTradesWidget from "./widgets/TodaysTradesWidget";
 import TradingJournalShortcutWidget from "./widgets/TradingJournalShortcutWidget";
+
+/* Den nye, sammenlagte Discipline-widget (Plan + Score i én) */
+import DisciplineWidget from "./widgets/DisciplineWidget";
 
 /* Konti & Risiko */
 import AccountsWidget from "./widgets/AccountsWidget";
@@ -60,7 +63,7 @@ import LeaderboardSnapshotWidget from "./widgets/LeaderboardSnapshotWidget";
 import MyRankInTeamWidget from "./widgets/MyRankInTeamWidget";
 import TeamAnnouncementsWidget from "./widgets/TeamAnnouncementsWidget";
 import TeamStreaksWidget from "./widgets/TeamStreaksWidget";
-import BadgesEarnedByTeam from "./widgets/BadgesEarnedByTeamWidget";
+import BadgesEarnedByTeamWidget from "./widgets/BadgesEarnedByTeamWidget";
 import CommunitySignalsWidget from "./widgets/CommunitySignalsWidget";
 
 /* Bonus */
@@ -69,7 +72,6 @@ import RiskAlertsWidget from "./widgets/RiskAlertsWidget";
 import PortfolioValueWidget from "./widgets/PortfolioValueWidget";
 import PinnedResourcesWidget from "./widgets/PinnedResourcesWidget";
 import UpcomingSessionsWidget from "./widgets/UpcomingSessionsWidget";
-import BadgesEarnedByTeamWidget from "@/app/dashboard/_components/widgets/BadgesEarnedByTeamWidget";
 
 /** ========= Typer ========= */
 export type WidgetSpec = {
@@ -196,24 +198,14 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
     },
 
     /* Kerne */
-    tradingPlan: {
-        slug: "tradingPlan",
-        title: "Tradingplan",
-        category: "Core",
-        component: (p) => <TradingPlanWidget {...p} />,
-    },
     dailyChecklist: {
         slug: "dailyChecklist",
         title: "Daily checklist",
         category: "Core",
         component: (p) => <DailyChecklistWidget {...p} />,
     },
-    scorecard: {
-        slug: "scorecard",
-        title: "Scorecard",
-        category: "Core",
-        component: (p) => <ScorecardWidget {...p} />,
-    },
+    // tradingPlan — fjernet
+    // scorecard   — fjernet
     unnamedTrades: {
         slug: "unnamedTrades",
         title: "Unavngivne trades",
@@ -231,6 +223,12 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
         title: "Trading Journal Shortcut",
         category: "Core",
         component: (p) => <TradingJournalShortcutWidget {...p} />,
+    },
+    discipline: {
+        slug: "discipline",
+        title: "Trading Plan",
+        category: "Core",
+        component: (p) => <DisciplineWidget {...p} />,
     },
 
     /* Konti & Risiko */
@@ -256,7 +254,7 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
     },
     upcomingNews: {
         slug: "upcomingNews",
-        title: "Upcoming High-Impact News",
+        title: "High Volatility News",
         category: "NewsCalendar",
         component: (p) => <UpcomingNewsWidget {...p} />,
     },
@@ -270,7 +268,7 @@ export const widgetRegistry: Record<WidgetSlug, WidgetSpec> = {
     /* Mål & Fremdrift */
     tradingGoals: {
         slug: "tradingGoals",
-        title: "Trading Goals",
+        title: "Trading mål",
         category: "GoalsProgress",
         component: (p) => <TradingGoalsWidget {...p} />,
     },

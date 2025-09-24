@@ -15,20 +15,10 @@ type Trade = {
     pnlR?: number;     // ikke i brug her, men lader typen stå til senere
 };
 
-const SYMBOLS = [
-    "SPX500",
-    "US100",
-    "XAUUSD",
-    "EURUSD",
-    "GBPUSD",
-    "USDJPY",
-    "GER40",
-    "US30",
-];
+const SYMBOLS = ["SPX500","US100","XAUUSD","EURUSD","GBPUSD","USDJPY","GER40","US30"];
 
 /** Hjælper: lav en deterministisk HH:MMZ på basis af et heltal-minut offset */
 function hhmmZFromBaseOffset(minutesOffset: number): string {
-    // Fast UTC-anker: 2024-01-01T00:00:00Z, og så plus et offset i minutter.
     const base = Date.UTC(2024, 0, 1, 0, 0, 0, 0);
     const d = new Date(base + minutesOffset * 60 * 1000);
     const hh = String(d.getUTCHours()).padStart(2, "0");
@@ -70,30 +60,27 @@ export default function UnnamedTradesWidget({ instanceId }: Props) {
 
     return (
         <div
-            className="rounded-xl p-4 bg-neutral-900/60 dark:bg-neutral-800/60 border border-neutral-800"
+            className="h-full flex flex-col min-h-0 rounded-xl p-4 bg-neutral-900/60 dark:bg-neutral-800/60 border border-neutral-800"
             id={`${instanceId}-unnamed`}
         >
             {/* Øverste boks/linje */}
-            <div className="mb-4 text-sm text-neutral-300">
+            <div className="mb-4 text-sm text-neutral-300 shrink-0">
                 Du har{" "}
                 <span className="font-semibold text-neutral-100">{trades.length}</span>{" "}
                 unavngivne/utaggede trades.{" "}
-                <Link
-                    href="/trades/tag"
-                    className="underline underline-offset-2 hover:text-white"
-                >
+                <Link href="/trades/tag" className="underline underline-offset-2 hover:text-white">
                     Se alle her
                 </Link>
                 .
             </div>
 
-            {/* Liste */}
+            {/* Listeområde fylder resten */}
             {empty ? (
-                <div className="h-24 rounded-lg border border-dashed border-neutral-700 flex items-center justify-center text-neutral-400 text-sm">
+                <div className="flex-1 min-h-0 rounded-lg border border-dashed border-neutral-700 flex items-center justify-center text-neutral-400 text-sm">
                     Ingen unavngivne/utaggede trades 🎉
                 </div>
             ) : (
-                <ul className="grid grid-cols-2 gap-3">
+                <ul className="flex-1 min-h-0 overflow-auto grid grid-cols-2 gap-3 pr-1">
                     {toShow.map((t) => (
                         <li
                             key={t.id}
@@ -131,8 +118,6 @@ export default function UnnamedTradesWidget({ instanceId }: Props) {
                     ))}
                 </ul>
             )}
-
-            {/* Footer fjernet efter ønske */}
         </div>
     );
 }
@@ -146,10 +131,7 @@ function SideBadge({ side }: { side: Trade["side"] }) {
             ? "bg-emerald-900/40 border-emerald-700 text-emerald-300"
             : "bg-red-900/40 border-red-700 text-red-300";
     return (
-        <span
-            className={`text-[10px] px-1.5 py-0.5 rounded border ${bg}`}
-            title={side}
-        >
+        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${bg}`} title={side}>
       {side}
     </span>
     );

@@ -32,7 +32,7 @@ export default function UpcomingNewsWidget({ instanceId }: { instanceId: string 
                 setLoading(true);
                 setErr(null);
 
-                // High-impact = minImpact=3
+                // High-impact events, cap = 5 (så vi undgår intern scroll)
                 const url = `/api/calendar/next?limit=5&minImpact=3&hours=168&tz=${encodeURIComponent(
                     tz
                 )}`;
@@ -48,7 +48,7 @@ export default function UpcomingNewsWidget({ instanceId }: { instanceId: string 
                     setItems([]);
                     return;
                 }
-                if (alive) setItems(data.items || []);
+                if (alive) setItems((data.items || []).slice(0, 5));
             } catch (e: any) {
                 if (alive) {
                     setErr(e?.message || "Kunne ikke hente nyheder");
@@ -58,41 +58,48 @@ export default function UpcomingNewsWidget({ instanceId }: { instanceId: string 
                 if (alive) setLoading(false);
             }
         })();
-        return () => {
-            alive = false;
-        };
+        return () => { alive = false; };
     }, [tz]);
 
-    if (loading) return <ListSkeleton rows={5} />;
-
-    if (err) {
-        return (
-            <div className="text-sm text-red-300">
-                {err || "Kunne ikke hente nyheder."}
-            </div>
-        );
-    }
-
-    if (!items.length) {
-        return (
-            <div className="text-sm text-neutral-400">
-                Ingen kommende events fundet.
-            </div>
-        );
-    }
+    const localTime = useMemo(() => {
+        try {
+            return new Intl.DateTimeFormat("da-DK", {
+                timeZone: tz, hour: "2-digit", minute: "2-digit",
+            }).format(new Date());
+        } catch {
+            return "";
+        }
+    }, [tz]);
 
     return (
-        <ul className="space-y-3">
-            {items.map((it) => (
-                <li key={it.id}>
-                    <Row item={it} tz={tz} />
-                </li>
-            ))}
-        </ul>
+        <div className="h-full flex flex-col min-h-0" id={`${instanceId}-upcoming`}>
+            {/* Header */}
+            <div className="mb-3 flex items-center justify-between">
+                <div className="font-medium">High Volatility News</div>
+                <div className="text-xs text-neutral-400">Lokal tid: {localTime}</div>
+            </div>
+
+            {/* Indhold — ingen intern scroll */}
+            {loading ? (
+                <ListSkeleton rows={5} />
+            ) : err ? (
+                <div className="text-sm text-red-300">{err || "Kunne ikke hente nyheder."}</div>
+            ) : !items.length ? (
+                <div className="text-sm text-neutral-400">Ingen kommende events fundet.</div>
+            ) : (
+                <ul className="space-y-3">
+                    {items.map((it) => (
+                        <li key={it.id}>
+                            <Row item={it} tz={tz} />
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
     );
 }
 
-/* -------------------- UI helpers (samme som i NewsList) -------------------- */
+/* -------------------- UI helpers -------------------- */
 
 function Row({ item, tz }: { item: ApiItem; tz: string }) {
     const dt = new Date(item.date);
@@ -111,20 +118,11 @@ function Row({ item, tz }: { item: ApiItem; tz: string }) {
         </div>
     );
 
-    if (item.url) {
-        return (
-            <a
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
-                className="block focus:outline-none focus:ring-1 focus:ring-neutral-600 rounded-md"
-                title="Åbn hos TradingEconomics"
-            >
-                {content}
-            </a>
-        );
-    }
-    return content;
+    return item.url ? (
+        <a href={item.url} target="_blank" rel="noreferrer" className="block focus:outline-none focus:ring-1 focus:ring-neutral-600 rounded-md" title="Åbn hos TradingEconomics">
+            {content}
+        </a>
+    ) : content;
 }
 
 function ImportanceBadge({ n }: { n: number }) {
@@ -146,14 +144,10 @@ function ImportanceBadge({ n }: { n: number }) {
 function fmtLocal(d: Date, tz: string) {
     try {
         const date = new Intl.DateTimeFormat("da-DK", {
-            timeZone: tz,
-            day: "2-digit",
-            month: "2-digit",
+            timeZone: tz, day: "2-digit", month: "2-digit",
         }).format(d);
         const time = new Intl.DateTimeFormat("da-DK", {
-            timeZone: tz,
-            hour: "2-digit",
-            minute: "2-digit",
+            timeZone: tz, hour: "2-digit", minute: "2-digit",
         }).format(d);
         return `${date}, ${time}`;
     } catch {
@@ -165,10 +159,7 @@ function ListSkeleton({ rows = 5 }: { rows?: number }) {
     return (
         <ul className="space-y-3">
             {Array.from({ length: rows }).map((_, i) => (
-                <li
-                    key={i}
-                    className="h-11 rounded-lg border border-neutral-800 bg-neutral-900/40 animate-pulse"
-                />
+                <li key={i} className="h-11 rounded-lg border border-neutral-800 bg-neutral-900/40 animate-pulse" />
             ))}
         </ul>
     );
