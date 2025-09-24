@@ -1,175 +1,54 @@
 "use client";
+import { useMemo } from "react";
+import HelpTip from "../HelpTip";
+import { seededRng } from "../seededRandom";
 
-import { useEffect, useMemo, useState } from "react";
-
-type ApiItem = {
-    id: string;
-    country: string;
-    event: string;
-    category: string;
-    importance: number;
-    date: string;  // ISO
-    when: string;  // lokaliseret fra API
-    url?: string;
-};
-
-type ApiRes = { ok: true; items: ApiItem[] } | { ok: false; error: string };
+type News = { id: string; time: string; country: string; event: string; impact: "High"|"Medium"|"Low" };
 
 export default function UpcomingNewsWidget({ instanceId }: { instanceId: string }) {
-    const [loading, setLoading] = useState(true);
-    const [err, setErr] = useState<string | null>(null);
-    const [items, setItems] = useState<ApiItem[]>([]);
-
-    const tz = useMemo(
-        () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-        []
-    );
-
-    useEffect(() => {
-        let alive = true;
-        (async () => {
-            try {
-                setLoading(true);
-                setErr(null);
-
-                // High-impact = minImpact=3
-                const url = `/api/calendar/next?limit=5&minImpact=3&hours=168&tz=${encodeURIComponent(
-                    tz
-                )}`;
-                const res = await fetch(url, { cache: "no-store" });
-                if (!res.ok) {
-                    setErr(`HTTP ${res.status}`);
-                    setItems([]);
-                    return;
-                }
-                const data: ApiRes = await res.json();
-                if (!data.ok) {
-                    setErr(data.error || "Ukendt fejl");
-                    setItems([]);
-                    return;
-                }
-                if (alive) setItems(data.items || []);
-            } catch (e: any) {
-                if (alive) {
-                    setErr(e?.message || "Kunne ikke hente nyheder");
-                    setItems([]);
-                }
-            } finally {
-                if (alive) setLoading(false);
-            }
-        })();
-        return () => {
-            alive = false;
-        };
-    }, [tz]);
-
-    if (loading) return <ListSkeleton rows={5} />;
-
-    if (err) {
-        return (
-            <div className="text-sm text-red-300">
-                {err || "Kunne ikke hente nyheder."}
-            </div>
-        );
-    }
-
-    if (!items.length) {
-        return (
-            <div className="text-sm text-neutral-400">
-                Ingen kommende events fundet.
-            </div>
-        );
-    }
+    const rng = useMemo(() => seededRng(`${instanceId}-news`), [instanceId]);
+    const items = useMemo<News[]>(() => seedNews(rng), [rng]);
 
     return (
-        <ul className="space-y-3">
-            {items.map((it) => (
-                <li key={it.id}>
-                    <Row item={it} tz={tz} />
-                </li>
-            ))}
-        </ul>
-    );
-}
-
-/* -------------------- UI helpers (samme som i NewsList) -------------------- */
-
-function Row({ item, tz }: { item: ApiItem; tz: string }) {
-    const dt = new Date(item.date);
-    const dateStr = fmtLocal(dt, tz);
-
-    const content = (
-        <div className="flex items-start gap-3 rounded-lg border border-neutral-800 bg-neutral-900/40 px-3 py-2 hover:bg-neutral-900/60 transition">
-            <ImportanceBadge n={item.importance} />
-            <div className="min-w-0">
-                <div className="truncate">
-                    <span className="font-medium">{item.event}</span>
-                    <span className="text-neutral-300"> — {item.country}</span>
+        <div className="h-full rounded-xl border border-neutral-800 bg-neutral-900/60 p-4 flex flex-col">
+            <div className="flex items-center justify-between">
+                <div className="text-sm text-neutral-300 flex items-center gap-2">
+                    High Volatility News <HelpTip text="De næste høj-impact nyheder (stub-data i demo)." />
                 </div>
-                <div className="text-xs text-neutral-400 mt-0.5">{dateStr}</div>
+                <button className="text-xs px-2 py-1 rounded border border-neutral-700 hover:bg-neutral-800">Kalender</button>
+            </div>
+
+            {/* Ingen scroll – vi viser kun 5 og lader boksen fylde højde h=5 */}
+            <div className="mt-3 flex-1 grid grid-rows-5 gap-2">
+                {items.slice(0, 5).map((n) => (
+                    <div key={n.id} className="rounded-md border border-neutral-800 p-2 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <span className="text-xs text-neutral-400 w-[46px]">{n.time}</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded border border-neutral-700">{n.country}</span>
+                            <span className="text-sm">{n.event}</span>
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded ${n.impact==="High"?"bg-red-600/30 text-red-200":"bg-yellow-600/30 text-yellow-200"}`}>{n.impact}</span>
+                    </div>
+                ))}
             </div>
         </div>
     );
+}
 
-    if (item.url) {
-        return (
-            <a
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
-                className="block focus:outline-none focus:ring-1 focus:ring-neutral-600 rounded-md"
-                title="Åbn hos TradingEconomics"
-            >
-                {content}
-            </a>
-        );
+function seedNews(rng: () => number): News[] {
+    const pool: News[] = [
+        { id: "n1", time: "08:30", country: "US", event: "CPI (YoY)", impact: "High" },
+        { id: "n2", time: "10:00", country: "EU", event: "ECB Presser", impact: "High" },
+        { id: "n3", time: "14:00", country: "US", event: "FOMC Statement", impact: "High" },
+        { id: "n4", time: "07:45", country: "CH", event: "SNB Rate", impact: "High" },
+        { id: "n5", time: "01:30", country: "JP", event: "BoJ Outlook", impact: "High" },
+        { id: "n6", time: "09:00", country: "GB", event: "GDP (m/m)", impact: "Medium" },
+    ];
+    // Shuffle deterministisk
+    const arr = [...pool];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
     }
-    return content;
-}
-
-function ImportanceBadge({ n }: { n: number }) {
-    const cfg =
-        n >= 3
-            ? { bg: "bg-red-600/20", dot: "bg-red-500", label: "Høj" }
-            : n === 2
-                ? { bg: "bg-amber-500/20", dot: "bg-amber-400", label: "Medium" }
-                : { bg: "bg-emerald-600/20", dot: "bg-emerald-500", label: "Lav" };
-
-    return (
-        <div className={`inline-flex items-center gap-2 px-2 py-1 rounded-md ${cfg.bg}`}>
-            <span className={`inline-block w-2.5 h-2.5 rounded-full ${cfg.dot}`} />
-            <span className="text-xs text-neutral-200">{cfg.label}</span>
-        </div>
-    );
-}
-
-function fmtLocal(d: Date, tz: string) {
-    try {
-        const date = new Intl.DateTimeFormat("da-DK", {
-            timeZone: tz,
-            day: "2-digit",
-            month: "2-digit",
-        }).format(d);
-        const time = new Intl.DateTimeFormat("da-DK", {
-            timeZone: tz,
-            hour: "2-digit",
-            minute: "2-digit",
-        }).format(d);
-        return `${date}, ${time}`;
-    } catch {
-        return d.toISOString();
-    }
-}
-
-function ListSkeleton({ rows = 5 }: { rows?: number }) {
-    return (
-        <ul className="space-y-3">
-            {Array.from({ length: rows }).map((_, i) => (
-                <li
-                    key={i}
-                    className="h-11 rounded-lg border border-neutral-800 bg-neutral-900/40 animate-pulse"
-                />
-            ))}
-        </ul>
-    );
+    return arr;
 }
