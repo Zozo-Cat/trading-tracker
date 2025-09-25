@@ -18,10 +18,10 @@ const MARGIN: [number, number] = [16, 0];
 /** Bund-padding så sidste række ikke støder på footeren */
 const CONTAINER_PADDING: [number, number] = [0, 24];
 
-/* ===================== LocalStorage (bump VERSION) ====================== */
-const LS_VERSION = "32"; // bump for at tvinge reseed
+/* ===================== LocalStorage ====================== */
 const LS_KEY_LAYOUT = "tt.dashboard.v2.layout";
 const LS_KEY_WIDGETS = "tt.dashboard.v2.widgets";
+// Vi opretholder version-nøglen hvis andre steder læser den, men vi bruger den IKKE til at reseede her:
 const LS_KEY_VERSION = "tt.dashboard.v2.version";
 
 /* ===================== Types ====================== */
@@ -60,7 +60,6 @@ function seedDefaultFree(): { instances: WidgetInstance[]; layout: Layout[] } {
             ["challenges", "tradingGoals"],          // 4 + 4
         ],
     ];
-
     return packRowsWithStacks(rows);
 }
 
@@ -113,33 +112,40 @@ function packRowsWithStacks(
     return { instances, layout };
 }
 
-/* ===================== Dashboard Page ====================== */
 export default function DashboardPage() {
     const [instances, setInstances] = useState<WidgetInstance[]>([]);
     const [layout, setLayout] = useState<Layout[]>([]);
     const [isCustomizeOpen, setCustomizeOpen] = useState(false);
 
-    useEffect(() => {
-        const version = localStorage.getItem(LS_KEY_VERSION);
-        if (version !== LS_VERSION) {
-            const seeded = seedDefaultFree();
-            localStorage.setItem(LS_KEY_LAYOUT, JSON.stringify(seeded.layout));
-            localStorage.setItem(LS_KEY_WIDGETS, JSON.stringify(seeded.instances));
-            localStorage.setItem(LS_KEY_VERSION, LS_VERSION);
-            setInstances(seeded.instances);
-            setLayout(seeded.layout);
-            return;
-        }
-
+    // Helper: læs det, der ligger i LS, og sæt state
+    const applyFromLocalStorage = () => {
         const savedLayout = localStorage.getItem(LS_KEY_LAYOUT);
         const savedWidgets = localStorage.getItem(LS_KEY_WIDGETS);
         if (savedLayout && savedWidgets) {
             setLayout(JSON.parse(savedLayout));
             setInstances(JSON.parse(savedWidgets));
-        } else {
-            const seeded = seedDefaultFree();
-            setInstances(seeded.instances);
-            setLayout(seeded.layout);
+        }
+    };
+
+    useEffect(() => {
+        // 1) Hvis der allerede ER et layout i LS, brug det (rør IKKE ved det)
+        const savedLayout = localStorage.getItem(LS_KEY_LAYOUT);
+        const savedWidgets = localStorage.getItem(LS_KEY_WIDGETS);
+
+        if (savedLayout && savedWidgets) {
+            setLayout(JSON.parse(savedLayout));
+            setInstances(JSON.parse(savedWidgets));
+            return;
+        }
+
+        // 2) Første gangs load (intet i LS) → seed og skriv
+        const seeded = seedDefaultFree();
+        setInstances(seeded.instances);
+        setLayout(seeded.layout);
+        localStorage.setItem(LS_KEY_LAYOUT, JSON.stringify(seeded.layout));
+        localStorage.setItem(LS_KEY_WIDGETS, JSON.stringify(seeded.instances));
+        if (!localStorage.getItem(LS_KEY_VERSION)) {
+            localStorage.setItem(LS_KEY_VERSION, "1");
         }
     }, []);
 
@@ -172,7 +178,18 @@ export default function DashboardPage() {
             </ResponsiveGridLayout>
 
             {isCustomizeOpen && (
-                <CustomizeLayoutModal onClose={() => setCustomizeOpen(false)} />
+                <CustomizeLayoutModal
+                    open={isCustomizeOpen}
+                    onClose={() => setCustomizeOpen(false)}
+                    onSave={(newInstances, newLayout) => {
+                        // Gem præcis det, modalen giver os (samme struktur/type som resten af appen)
+                        localStorage.setItem(LS_KEY_LAYOUT, JSON.stringify(newLayout));
+                        localStorage.setItem(LS_KEY_WIDGETS, JSON.stringify(newInstances));
+                        // Opdater dashboardet med det samme
+                        applyFromLocalStorage();
+                        setCustomizeOpen(false);
+                    }}
+                />
             )}
         </div>
     );
