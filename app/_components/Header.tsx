@@ -30,6 +30,7 @@ export default function Header() {
     const [mounted, setMounted] = useState(false);
     useEffect(() => setMounted(true), []);
 
+    /* -------------------- NOTIF DROPDOWN (uændret) -------------------- */
     const [open, setOpen] = useState(false);
     const [pos, setPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
     const bellBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -102,10 +103,91 @@ export default function Header() {
         router.refresh();
     };
 
-    const avatar =
+    /* -------------------- AVATAR / USER MENU (fixed position + realtime) -------------------- */
+    const [userMenuOpen, setUserMenuOpen] = useState(false);
+    const userMenuBtnRef = useRef<HTMLButtonElement | null>(null);
+    const [userMenuPos, setUserMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+    const placeUserMenu = () => {
+        const el = userMenuBtnRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const menuWidth = 224; // ~ min-w-56
+        const gap = 8;
+        const top = rect.bottom + gap;
+        const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+        setUserMenuPos({ top, left });
+    };
+
+    useEffect(() => {
+        if (!userMenuOpen) return;
+        placeUserMenu();
+        const onScroll = () => placeUserMenu();
+        const onResize = () => placeUserMenu();
+        const onDocClick = (e: MouseEvent) => {
+            const menu = document.getElementById("tt-user-menu-dropdown");
+            if (!menu) return;
+            const target = e.target as Node;
+            if (!menu.contains(target) && !userMenuBtnRef.current?.contains(target as Node)) {
+                setUserMenuOpen(false);
+            }
+        };
+        window.addEventListener("scroll", onScroll, true);
+        window.addEventListener("resize", onResize);
+        document.addEventListener("mousedown", onDocClick);
+        return () => {
+            window.removeEventListener("scroll", onScroll, true);
+            window.removeEventListener("resize", onResize);
+            document.removeEventListener("mousedown", onDocClick);
+        };
+    }, [userMenuOpen]);
+
+    // Hent avatar fra profiles (fallback til user metadata) + realtime opdatering
+    const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        let channel: ReturnType<typeof supabase.channel> | null = null;
+
+        async function loadOnce() {
+            if (!user) { setProfileAvatar(null); return; }
+            const { data, error } = await supabase
+                .from("profiles")
+                .select("avatar_url")
+                .eq("id", user.id)
+                .maybeSingle();
+            if (!cancelled) setProfileAvatar(!error && data ? (data.avatar_url ?? null) : null);
+        }
+
+        async function subscribe() {
+            if (!user) return;
+            channel = supabase
+                .channel(`profiles:${user.id}`)
+                .on(
+                    "postgres_changes",
+                    { event: "*", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
+                    (payload) => {
+                        const next = (payload.new as any)?.avatar_url ?? null;
+                        setProfileAvatar(next);
+                    }
+                )
+                .subscribe();
+        }
+
+        loadOnce();
+        subscribe();
+
+        return () => {
+            cancelled = true;
+            channel?.unsubscribe();
+        };
+    }, [user?.id, supabase]);
+
+    const fallbackAvatar =
         (user?.user_metadata?.avatar_url as string | undefined) ??
         (user?.image as string | undefined) ??
         "/images/default-avatar.png";
+
+    const avatarUrl = profileAvatar ?? fallbackAvatar;
 
     return (
         <header className="sticky top-0 z-50 border-b border-gray-700" style={{ backgroundColor: "#211d1d" }}>
@@ -158,6 +240,7 @@ export default function Header() {
                                 <CommunityPicker />
                             </div>
 
+                            {/* Notifikationer */}
                             <div className="relative">
                                 <button
                                     ref={bellBtnRef}
@@ -182,9 +265,62 @@ export default function Header() {
                                 </button>
                             </div>
 
-                            <Link href="/min-side" className="flex items-center">
-                                <img src={avatar} alt="Profil" width={36} height={36} className="rounded-full border border-gray-500" />
-                            </Link>
+                            {/* AVATAR-KNAP */}
+                            <button
+                                ref={userMenuBtnRef}
+                                onClick={() => setUserMenuOpen(v => !v)}
+                                className="flex items-center"
+                                aria-label="Bruger menu"
+                                aria-expanded={userMenuOpen}
+                                type="button"
+                            >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                    src={avatarUrl}
+                                    alt="Profil"
+                                    width={36}
+                                    height={36}
+                                    className="rounded-full border border-gray-500"
+                                />
+                            </button>
+
+                            {/* USER MENU DROPDOWN – fixed så den aldrig clips */}
+                            {mounted && user && userMenuOpen && (
+                                <div
+                                    id="tt-user-menu-dropdown"
+                                    role="menu"
+                                    className="min-w-56 rounded-xl border p-1 shadow-xl"
+                                    style={{
+                                        position: "fixed",
+                                        top: userMenuPos.top,
+                                        left: userMenuPos.left,
+                                        backgroundColor: "#2a2727",
+                                        borderColor: "#3b3838",
+                                        zIndex: 3000,
+                                        boxShadow: "0 10px 30px rgba(0,0,0,.4)",
+                                    }}
+                                >
+                                    <Link
+                                        href="/settings"
+                                        className="block px-3 py-2 rounded-lg hover:bg:white/5"
+                                        style={{ color: "#D4AF37" }}
+                                        role="menuitem"
+                                        onClick={() => setUserMenuOpen(false)}
+                                    >
+                                        Mine indstillinger
+                                    </Link>
+                                    <Link
+                                        href="/trading/settings"
+                                        className="block px-3 py-2 rounded-lg hover:bg:white/5"
+                                        style={{ color: "#D4AF37" }}
+                                        role="menuitem"
+                                        onClick={() => setUserMenuOpen(false)}
+                                    >
+                                        Trading indstillinger
+                                    </Link>
+                                </div>
+                            )}
+
                             <button
                                 onClick={handleLogout}
                                 className="px-3 py-2 rounded-md text-white font-medium text-sm"
