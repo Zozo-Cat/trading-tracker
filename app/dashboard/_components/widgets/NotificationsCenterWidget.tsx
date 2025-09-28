@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePrefs } from "@/lib/usePrefs";
+import { formatDateTime } from "@/lib/format";
 import { seededRng } from "../seededRandom";
 
 type Level = "info" | "success" | "warning" | "danger";
@@ -14,173 +16,95 @@ type Note = {
     detail?: string;
     iso: string;
     read?: boolean;
-    href?: string;
 };
 
-export default function NotificationsCenterWidget({ instanceId }: { instanceId: string }) {
-    const [mounted, setMounted] = useState(false);
-    useEffect(() => setMounted(true), []);
+type Props = { instanceId: string };
 
-    const rng = useMemo(() => seededRng(`${instanceId}::notifs`), [instanceId]);
+function pickKind(rng: () => number): Kind {
+    const v = rng();
+    if (v < 0.25) return "news";
+    if (v < 0.5) return "trade";
+    if (v < 0.75) return "goal";
+    return "system";
+}
+function pickLevel(rng: () => number): Level {
+    const v = rng();
+    if (v < 0.25) return "info";
+    if (v < 0.5) return "success";
+    if (v < 0.75) return "warning";
+    return "danger";
+}
 
-    const [notes, setNotes] = useState<Note[]>(() => {
-        // deterministisk seedet
-        const BASE = Date.UTC(2024, 2, 3, 9, 0, 0);
-        const mk = (i: number, n: Partial<Note>): Note => ({
-            id: `n${i}`,
-            kind: "system",
-            level: "info",
-            title: "Notifikation",
-            iso: new Date(BASE + (i + 1) * 42 * 60 * 1000).toISOString(),
-            read: false,
-            ...n,
+export default function NotificationsCenterWidget({ instanceId }: Props) {
+    const [notes, setNotes] = useState<Note[] | null>(null);
+
+    useEffect(() => {
+        const rng = seededRng("notes_" + instanceId);
+        const now = Date.now();
+        const items: Note[] = Array.from({ length: 6 }).map((_, i) => {
+            const iso = new Date(now - (i * 90 + rng() * 60) * 60 * 1000).toISOString();
+            return {
+                id: `${i}`,
+                kind: pickKind(rng),
+                level: pickLevel(rng),
+                title: i % 3 === 0 ? "System opdateret" : i % 3 === 1 ? "Trade lukket" : "Nyt mål nået",
+                detail: i % 3 === 0 ? "Baggrundsjob færdig" : i % 3 === 1 ? "TP ramte 1.5R" : "Streak 5/5",
+                iso,
+                read: i > 1,
+            };
         });
+        setNotes(items);
+    }, [instanceId]);
 
-        const arr: Note[] = [
-            mk(0, {
-                kind: "news",
-                level: "warning",
-                title: "Høj-impact nyhed om 15 min",
-                detail: "USD CPI",
-                href: "/dashboard?w=upcomingNews",
-            }),
-            mk(1, {
-                kind: "trade",
-                level: "info",
-                title: "Trade uden note",
-                detail: "Husk at tilføje note til seneste trade.",
-                href: "/journal",
-            }),
-            mk(2, {
-                kind: "goal",
-                level: "success",
-                title: "Mål opnået: 7 dages plan-følge",
-                href: "/maal",
-            }),
-            mk(3, {
-                kind: "system",
-                level: "info",
-                title: "Dashboard layout gemt",
-            }),
-            mk(4, {
-                kind: "trade",
-                level: "danger",
-                title: "Drawdown advarsel",
-                detail: "Nærmer dig -8% max DD.",
-                href: "/risk",
-            }),
-        ];
-
-        // bland læst/ulæst deterministisk
-        return arr.map((n) => ({ ...n, read: rng() > 0.5 ? true : false }));
-    });
-
-    const unread = notes.filter((n) => !n.read).length;
-
-    const markAllRead = () =>
-        setNotes((cur) => cur.map((n) => ({ ...n, read: true })));
-
-    const toggleRead = (id: string) =>
-        setNotes((cur) =>
-            cur.map((n) => (n.id === id ? { ...n, read: !n.read } : n))
-        );
-
-    if (!mounted) return <Skeleton />;
+    if (!notes) return <Skeleton />;
 
     return (
-        <div className="space-y-3">
-            <div className="flex items-center justify-between">
-                <div className="text-sm text-neutral-300">
-                    {unread ? `${unread} ulæste` : "Alt læst"}
+        <div className="rounded-xl p-4 bg-neutral-900/60 dark:bg-neutral-800/60 border border-neutral-800">
+            <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                    <h3 className="text-base font-medium">Beskeder</h3>
                 </div>
-                <button
-                    onClick={markAllRead}
-                    className="text-xs px-2 py-1 rounded-md border border-neutral-700 text-neutral-200 hover:bg-neutral-800"
-                >
-                    Markér alle som læst
-                </button>
             </div>
 
-            <ul className="space-y-2">
-                {notes.map((n) => (
-                    <li key={n.id}>
-                        <NoteRow note={n} onToggle={() => toggleRead(n.id)} />
-                    </li>
+            <div className="space-y-2">
+                {notes.map(n => (
+                    <NoteRow key={n.id} note={n} onToggle={() => {
+                        setNotes(arr => arr?.map(x => x.id === n.id ? { ...x, read: !x.read } : x) ?? arr);
+                    }} />
                 ))}
-            </ul>
-
-            <div className="pt-1">
-                <a
-                    href="/notifikationer"
-                    className="text-xs px-2 py-1 rounded-md border border-neutral-700 text-neutral-200 hover:bg-neutral-800"
-                >
-                    Se alle notifikationer
-                </a>
             </div>
         </div>
     );
 }
 
-/* -------------------- UI helpers -------------------- */
-
 function NoteRow({ note, onToggle }: { note: Note; onToggle: () => void }) {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const { prefs } = usePrefs();
     const d = new Date(note.iso);
-    const when = new Intl.DateTimeFormat("da-DK", {
-        timeZone: tz,
-        day: "2-digit", month: "2-digit",
-        hour: "2-digit", minute: "2-digit",
-    }).format(d);
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const when = formatDateTime(d, prefs, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
     const ring =
         note.level === "danger" ? "ring-rose-500/40"
             : note.level === "warning" ? "ring-amber-400/40"
                 : note.level === "success" ? "ring-emerald-500/40"
-                    : "ring-neutral-700/40";
+                    : "ring-neutral-500/30";
 
-    const dot =
-        note.level === "danger" ? "bg-rose-500"
-            : note.level === "warning" ? "bg-amber-400"
-                : note.level === "success" ? "bg-emerald-500"
-                    : "bg-neutral-400";
-
-    const icon = note.kind === "news" ? "📰" : note.kind === "trade" ? "📈" : note.kind === "goal" ? "🎯" : "⚙️";
-
-    const content = (
-        <div className={`rounded-lg border border-neutral-800 bg-neutral-900/40 p-3 ring-1 ${ring}`}>
-            <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2 min-w-0">
-                    <span className="text-base leading-6">{icon}</span>
-                    <div className="min-w-0">
-                        <div className="font-medium truncate">
-                            {!note.read && <span className={`inline-block w-2 h-2 rounded-full ${dot} mr-2 align-middle`} />}
-                            {note.title}
-                        </div>
-                        {note.detail && (
-                            <div className="text-sm text-neutral-300 truncate">{note.detail}</div>
-                        )}
-                        <div className="text-xs text-neutral-400 mt-0.5">{when}</div>
-                    </div>
+    return (
+        <div className={`rounded-lg border border-neutral-800 bg-neutral-900/40 px-3 py-2 ring-1 ${ring}`}>
+            <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                    <div className="text-sm text-neutral-100 truncate">{note.title}</div>
+                    <div className="text-[11px] text-neutral-400">{when} · {note.detail}</div>
                 </div>
                 <button
                     onClick={onToggle}
-                    className="text-xs px-2 py-1 rounded-md border border-neutral-700 text-neutral-200 hover:bg-neutral-800 shrink-0"
-                    title={note.read ? "Markér som ulæst" : "Markér som læst"}
+                    className={`text-xs rounded-md border px-2 py-1 ${note.read ? "border-neutral-700 hover:bg-neutral-800" : "border-emerald-600 text-emerald-300 hover:bg-emerald-900/20"}`}
                 >
-                    {note.read ? "Ulæst" : "Læst"}
+                    {note.read ? "Marker ulæst" : "Marker læst"}
                 </button>
             </div>
         </div>
     );
-
-    if (note.href) {
-        return (
-            <a href={note.href} className="block focus:outline-none focus:ring-1 focus:ring-neutral-600 rounded-md">
-                {content}
-            </a>
-        );
-    }
-    return content;
 }
 
 function Skeleton() {

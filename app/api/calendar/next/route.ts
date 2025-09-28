@@ -21,7 +21,8 @@ export async function GET(req: NextRequest) {
         const limit = clampInt(url.searchParams.get("limit"), 5, 1, 50);
         const hours = clampInt(url.searchParams.get("hours"), 168, 1, 24 * 14); // next 7 days
         const minImpact = clampInt(url.searchParams.get("minImpact"), 1, 1, 3);
-        const tz = (url.searchParams.get("tz") || "UTC").trim();
+        // NOTE: tz param is intentionally ignored server-side now; UI handles presentation timezone
+        // const tz = (url.searchParams.get("tz") || "UTC").trim();
         const countriesRaw = (url.searchParams.get("countries") || "").trim(); // optional
 
         const countries = splitCsv(countriesRaw); // if empty = all countries
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        // build TE URL
+        // build TE URL (UTC-safe; we pass ISO dates)
         const now = new Date();
         const end = new Date(now.getTime() + hours * 60 * 60 * 1000);
 
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
             .map(cleanTE)
             // filter by min impact; if guest returns 0/undefined we treat it as 0
             .filter((it) => (Number.isFinite(it.importance) ? it.importance! : 0) >= minImpact)
-            // sort ascending by date
+            // sort ascending by date (ISO → UTC)
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         // DEV fallback for guest:guest (so widgets aren’t empty while developing)
@@ -72,16 +73,14 @@ export async function GET(req: NextRequest) {
             final = makeDevFallback(now).slice(0, limit);
         }
 
-        // project to lightweight shape, with localized time string too
+        // project to lightweight shape (UTC ISO only; UI formats to local)
         const out = final.map((it) => ({
             id: it.id,
             country: it.country,
             event: it.event || it.category || "Event",
             category: it.category || "",
             importance: it.importance ?? 0,
-            date: it.date,
-            // local presentation string for convenience (uses requested tz)
-            when: fmtDateTime(new Date(it.date), tz),
+            date: it.date, // ISO in UTC
             url: it.url ? `https://tradingeconomics.com${it.url}` : "",
         }));
 
@@ -100,7 +99,7 @@ function cleanTE(x: any) {
     const importance = toInt(x.Importance, 0);
     return {
         id: String(x.CalendarId ?? ""),
-        date: String(x.Date ?? ""),
+        date: String(x.Date ?? ""), // ISO (UTC from TE)
         country: String(x.Country ?? ""),
         category: String(x.Category ?? ""),
         event: String(x.Event ?? ""),
@@ -132,31 +131,10 @@ function splitCsv(s: string) {
 function isoYMD(d: Date) {
     return d.toISOString().slice(0, 10);
 }
-function fmtDateTime(d: Date, tz: string) {
-    try {
-        return new Intl.DateTimeFormat("da-DK", {
-            timeZone: tz,
-            year: "2-digit",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-        }).format(d);
-    } catch {
-        return new Intl.DateTimeFormat("da-DK", {
-            timeZone: "UTC",
-            year: "2-digit",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-        }).format(d);
-    }
-}
 function makeDevFallback(now = new Date()) {
     const mk = (mins: number, country: string, event: string, imp = 3) => ({
         id: `dev-${mins}`,
-        date: new Date(now.getTime() + mins * 60_000).toISOString(),
+        date: new Date(now.getTime() + mins * 60_000).toISOString(), // ISO (UTC)
         country,
         category: "Preview",
         event,

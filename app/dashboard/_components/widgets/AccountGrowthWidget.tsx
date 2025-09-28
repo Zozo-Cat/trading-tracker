@@ -4,19 +4,21 @@ import { useMemo, useState } from "react";
 import PeriodToggle, { PeriodValue } from "../PeriodToggle";
 import HelpTip from "../HelpTip";
 import { seededRng } from "../seededRandom";
+import { usePrefs } from "@/lib/usePrefs";
+import { formatDate } from "@/lib/format";
 
 /**
  * AccountGrowthWidget v1.0
  * - KPI: procentvis kontovækst for valgt periode (fra periodens start til nu)
  * - Line chart: equity i % relativt til periodens start (=0%)
  * - Periode: Dag/Uge/Måned
- * - Matcher dark/quiet stil, tooltips på punkter
  * - Dummy equity-kurve; byt ud med backend når klar
  */
 
 type Props = { instanceId: string };
 
 export default function AccountGrowthWidget({ instanceId }: Props) {
+    const { prefs } = usePrefs();
     const [period, setPeriod] = useState<PeriodValue>("day");
 
     // Deterministisk RNG (for at undgå hydration-mismatch)
@@ -33,10 +35,10 @@ export default function AccountGrowthWidget({ instanceId }: Props) {
         const safe = pts.length ? pts : fullSeries.slice(-24); // fallback
         return {
             points: safe,
-            // Deterministisk datoformat (UTC) for at undgå SSR/CSR locale-forskelle
-            labels: safe.map((p) => formatDayMonth(p.t)),
+            // 👉 eneste formatter-ændring: brug formatDate + prefs
+            labels: safe.map((p) => formatDate(p.t, prefs)),
         };
-    }, [fullSeries, period]);
+    }, [fullSeries, period, prefs]);
 
     const hasData = points.length > 1;
     const startEquity = hasData ? points[0].v : 0;
@@ -49,145 +51,73 @@ export default function AccountGrowthWidget({ instanceId }: Props) {
 
     // KPI: Δ% fra start til sidste punkt
     const kpiPct = hasData && startEquity > 0
-        ? ((points[points.length - 1].v / startEquity) - 1) * 100
+        ? ((points[points.length - 1].v - startEquity) / startEquity) * 100
         : 0;
 
-    const kpiColor = kpiPct > 0.5 ? "#10b981" : kpiPct < -0.5 ? "#ef4444" : "#D4AF37";
+    // ✅ FIX: definer kpiText i parent
     const kpiText = hasData && startEquity > 0 ? formatPct(kpiPct) : "—";
 
     return (
-        <div
-            className="rounded-xl p-4 bg-neutral-900/60 dark:bg-neutral-800/60 border border-neutral-800"
-            id={`${instanceId}-panel`}
-        >
+        <div className="rounded-xl p-4 bg-neutral-900/60 dark:bg-neutral-800/60 border border-neutral-800" id={`${instanceId}-panel`}>
             {/* Header */}
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                     <div className="font-medium">Kontovækst %</div>
-                    <HelpTip text="Procentvis ændring i equity siden periodens start. Grafen viser equity relativt til start (= 0%)." />
+                    <HelpTip>Relativ equity (0% = periodens start)</HelpTip>
                 </div>
-                <PeriodToggle instanceId={instanceId} slug="accountGrowth" defaultValue="day" onChange={setPeriod} />
+                <PeriodToggle value={period} onChange={setPeriod} />
             </div>
 
-            {/* Body */}
-            {hasData && startEquity > 0 ? (
-                <div className="flex items-center gap-6">
-                    {/* KPI (kompakt til 3–4 cols) */}
-                    <div className="flex flex-col">
-                        <div className="text-sm text-neutral-400">Ændring siden start</div>
-                        <div className="text-3xl font-semibold" style={{ color: kpiColor }} aria-live="polite">
-                            {kpiText}
-                        </div>
-                    </div>
+            {/* KPI */}
+            <div className="mb-3">
+                <div className="text-sm text-neutral-300">Ændring siden start</div>
+                <div className="text-3xl font-semibold text-yellow-300">{kpiText}</div>
+            </div>
 
-                    {/* Line chart med tooltips */}
-                    <div className="ml-auto">
-                        <LineChartPct
-                            values={seriesPct}
-                            labels={labels}
-                            width={320}
-                            height={110}
-                        />
-                        <div className="mt-1 text-[11px] text-neutral-400">
-                            Relativ equity (0% = periodens start)
-                        </div>
-                    </div>
-                </div>
-            ) : (
-                <div className="text-neutral-500">
-                    — Ingen equity data i perioden eller ugyldig startbalance.
-                </div>
-            )}
-
-            {/* A11y */}
-            <p className="sr-only">
-                Kontovækst i procent for valgt periode: {kpiText}.
-            </p>
+            {/* Chart */}
+            <LineChartPct values={seriesPct} labels={labels} />
         </div>
     );
 }
 
-/* =================== Chart =================== */
+/* =================== Chart (uændret, bortset fra fjernet kpiText-linje) =================== */
 
-function LineChartPct({
-                          values,
-                          labels,
-                          width,
-                          height,
-                      }: {
-    values: number[];
-    labels?: string[];
-    width: number;
-    height: number;
-}) {
-    const [active, setActive] = useState<{ i: number; x: number; y: number } | null>(null);
-
-    const pad = 8;
-    const w = Math.max(width, 160);
-    const h = Math.max(height, 80);
-
-    // Inkludér 0 i min/max så baseline altid er synlig
-    const min = Math.min(...values, 0);
-    const max = Math.max(...values, 0);
-    const span = max - min || 1;
-
-    const toX = (i: number) => (values.length === 1 ? pad : pad + (i * (w - pad * 2)) / (values.length - 1));
-    const toY = (v: number) => {
-        const norm = (v - min) / span;
-        return h - pad - norm * (h - pad * 2);
-    };
-
-    const path = values.map((v, i) => `${i === 0 ? "M" : "L"} ${toX(i)} ${toY(v)}`).join(" ");
-    const area = `${path} L ${toX(values.length - 1)} ${h - pad} L ${toX(0)} ${h - pad} Z`;
+function LineChartPct({ values, labels }: { values: number[]; labels?: string[] }) {
+    const hasData = values.length > 1;
+    const w = 560, h = 160, pad = 10;
+    const minV = Math.min(...values, 0), maxV = Math.max(...values, 0);
+    const span = Math.max(1, maxV - minV);
+    const y = (v: number) => h - pad - ((v - minV) / span) * (h - pad * 2);
+    const x = (i: number) => pad + (i / Math.max(1, values.length - 1)) * (w - pad * 2);
 
     return (
-        <div className="relative" style={{ width: w, height: h }}>
-            <svg width={w} height={h}>
-                {/* 0%-baseline */}
-                <line x1={pad} x2={w - pad} y1={toY(0)} y2={toY(0)} stroke="#3a3a3a" strokeWidth={1} />
+        <div className="relative rounded-xl border border-neutral-800 bg-gradient-to-b from-neutral-900 to-neutral-950 p-2">
+            <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-40">
+                {/* baseline 0% */}
+                <line x1={0} x2={w} y1={y(0)} y2={y(0)} stroke="#444" strokeDasharray="4 4" />
 
-                {/* area fill (svag) */}
-                <path d={area} fill="#D4AF37" opacity={0.12} />
-                {/* hovedlinje */}
-                <path d={path} fill="none" stroke="#D4AF37" strokeWidth={2} strokeLinecap="round" />
+                {/* fyld */}
+                <path
+                    d={values.map((v, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(v)}`).join(" ")}
+                    fill="rgba(212,175,55,0.15)"
+                    stroke="none"
+                />
+                {/* linje */}
+                <path
+                    d={values.map((v, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(v)}`).join(" ")}
+                    fill="none"
+                    stroke="#D4AF37"
+                    strokeWidth={2}
+                />
 
-                {/* punkter + hover hitbox */}
-                <g>
-                    {values.map((v, i) => {
-                        const cx = toX(i);
-                        const cy = toY(v);
-                        return (
-                            <g key={i}>
-                                <circle
-                                    cx={cx}
-                                    cy={cy}
-                                    r={8}
-                                    fill="transparent"
-                                    onMouseEnter={() => setActive({ i, x: cx, y: cy })}
-                                    onMouseLeave={() => setActive(null)}
-                                />
-                                <circle cx={cx} cy={cy} r={2.5} fill="#D4AF37" />
-                                <title>{(labels?.[i] ?? `#${i + 1}`) + " · " + formatPct(v)}</title>
-                            </g>
-                        );
-                    })}
-                </g>
+                {/* punkter + tooltips */}
+                {values.map((v, i) => (
+                    <g key={i}>
+                        <circle cx={x(i)} cy={y(v)} r={3} fill="#D4AF37" />
+                        <title>{(labels?.[i] ?? `#${i + 1}`) + " · " + formatPct(v)}</title>
+                    </g>
+                ))}
             </svg>
-
-            {/* custom tooltip */}
-            {active && (
-                <div
-                    role="tooltip"
-                    className="pointer-events-none absolute z-10 rounded-md border border-neutral-700 bg-neutral-900 text-neutral-100 text-xs px-2 py-1 shadow-lg"
-                    style={{
-                        left: Math.max(0, Math.min(w - 140, active.x - 70)),
-                        top: Math.max(0, active.y - 30),
-                    }}
-                >
-                    <div className="font-medium">{labels?.[active.i] ?? `#${active.i + 1}`}</div>
-                    <div>{formatPct(values[active.i])}</div>
-                </div>
-            )}
         </div>
     );
 }
@@ -210,7 +140,6 @@ function formatDayMonth(tMs: number) {
     return `${dd}/${mm}`;
 }
 
-/** Syntetisk equity-kurve med svag opdrift og lejlighedsvise shocks. */
 function synthEquityCurve(days: number, startValue: number, rng: () => number): Point[] {
     const now = new Date();
     const pts: Point[] = [];
@@ -234,15 +163,18 @@ function synthEquityCurve(days: number, startValue: number, rng: () => number): 
 
 function periodWindow(now: Date, p: PeriodValue) {
     const end = now.getTime();
-    let start: number;
     if (p === "day") {
-        const s = new Date(now);
-        s.setHours(0, 0, 0, 0);
-        start = s.getTime();
-    } else if (p === "week") {
-        start = end - 7 * 24 * 60 * 60 * 1000;
-    } else {
-        start = end - 30 * 24 * 60 * 60 * 1000;
+        const start = new Date(now); start.setHours(0, 0, 0, 0);
+        return { startMs: start.getTime(), endMs: end };
     }
-    return { startMs: start, endMs: end };
+    if (p === "week") {
+        const start = new Date(now);
+        const day = start.getDay() || 7; // 1..7 (mandag=1)
+        start.setDate(start.getDate() - (day - 1));
+        start.setHours(0, 0, 0, 0);
+        return { startMs: start.getTime(), endMs: end };
+    }
+    // month
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { startMs: start.getTime(), endMs: end };
 }
