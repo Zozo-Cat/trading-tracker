@@ -1,37 +1,36 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePrefs } from "@/lib/usePrefs";
+import { formatDateTime } from "@/lib/format";
 
-export default function LocalTime({
-                                      iso,
-                                      dateStyle = "dd.MM",
-                                      timeStyle = "HH.mm",
-                                  }: {
-    iso: string;
-    dateStyle?: "dd.MM" | "dd/MM";
-    timeStyle?: "HH.mm" | "HH:mm";
-}) {
-    const [text, setText] = useState<string>("");
+type Props = {
+    showZoneLabel?: boolean;      // vis "Europe/Copenhagen" label
+    className?: string;
+    withSeconds?: boolean;
+};
+
+export default function LocalTime({ showZoneLabel = false, className, withSeconds = false }: Props) {
+    const { prefs, timeZone } = usePrefs();
+    const [now, setNow] = useState<Date>(new Date());
 
     useEffect(() => {
-        const d = new Date(iso); // <- altid bruger eventets minutter!
-        const date = new Intl.DateTimeFormat("da-DK", {
-            day: "2-digit",
-            month: "2-digit",
-        }).format(d);
+        const t = setInterval(() => setNow(new Date()), withSeconds ? 1000 : 30000);
+        return () => clearInterval(t);
+    }, [withSeconds]);
 
-        const time = new Intl.DateTimeFormat("da-DK", {
-            hour: "2-digit",
-            minute: "2-digit",
-        }).format(d);
-
-        // dd.MM + HH.mm (matcher dit screenshot)
-        const dateOut = dateStyle === "dd.MM" ? date.replace("/", ".") : date;
-        const timeOut = timeStyle === "HH.mm" ? time.replace(":", ".") : time;
-
-        setText(`${dateOut}, ${timeOut}`);
-    }, [iso, dateStyle, timeStyle]);
-
-    // Klientside render → ingen hydration-mismatch
-    return <span suppressHydrationWarning>{text || "…"}</span>;
+    return (
+        <div className={className}>
+            <div className="font-medium">
+                {formatDateTime(now, prefs, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: withSeconds ? "2-digit" : undefined,
+                })}
+            </div>
+            {showZoneLabel && (
+                <div className="text-xs text-yellow-200/70">{timeZone}</div>
+            )}
+        </div>
+    );
 }

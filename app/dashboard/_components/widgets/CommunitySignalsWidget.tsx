@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import HelpTip from "../HelpTip";
 import TeamToggle from "../TeamToggle";
 import { seededRng } from "../seededRandom";
+import { usePrefs } from "@/lib/usePrefs";
+import { formatDateTime } from "@/lib/format";
 
 type Props = { instanceId: string };
 
@@ -30,9 +32,10 @@ function fmt(ms: number, tz = TZ) {
     }).format(new Date(ms));
 }
 
-const SYMBOLS = ["EURUSD","GBPUSD","XAUUSD","US30","NAS100","DAX40","BTCUSD","ETHUSD"];
+const SYMBOLS = ["EURUSD", "GBPUSD", "XAUUSD", "US30", "NAS100", "DAX40", "BTCUSD", "ETHUSD"];
 
 export default function CommunitySignalsWidget({ instanceId }: Props) {
+    const { prefs } = usePrefs();
     const [team, setTeam] = useState<string>();
     const [mode, setMode] = useState<"recent" | "active">("recent"); // default: Seneste
 
@@ -40,31 +43,33 @@ export default function CommunitySignalsWidget({ instanceId }: Props) {
         const base = Date.UTC(2024, 4, 1, 7, 0, 0);
         const rng = seededRng(`${instanceId}::signals::${team ?? "default"}`);
 
-        return Array.from({ length: 12 }).map((_, i) => {
-            const sym = SYMBOLS[Math.floor(rng() * SYMBOLS.length)];
-            const dir = rng() < 0.5 ? "Long" : "Short";
-            const p = 100 + rng() * 2000;
-            const entry = round2(p);
-            const sl = round2(dir === "Long" ? entry * (0.996 - rng() * 0.006) : entry * (1.004 + rng() * 0.006));
-            const tp = round2(dir === "Long" ? entry * (1.004 + rng() * 0.01) : entry * (0.996 - rng() * 0.01));
-            const atMs = base + Math.floor((i + 1) * 9 * 3600 * 1000 * (0.7 + rng() * 0.8));
-            const r = rng();
-            const status: Signal["status"] = r < 0.2 ? "SL" : r < 0.55 ? "TP" : "Aktiv";
-            return { id: `${i}-${sym}`, symbol: sym, dir, entry, sl, tp, atMs, status };
-        }).sort((a, b) => b.atMs - a.atMs);
+        return Array.from({ length: 12 })
+            .map((_, i) => {
+                const sym = SYMBOLS[Math.floor(rng() * SYMBOLS.length)];
+                const dir = rng() < 0.5 ? "Long" : "Short";
+                const p = 100 + rng() * 2000;
+                const entry = round2(p);
+                const sl = round2(dir === "Long" ? entry * (0.996 - rng() * 0.006) : entry * (1.004 + rng() * 0.006));
+                const tp = round2(dir === "Long" ? entry * (1.004 + rng() * 0.01) : entry * (0.996 - rng() * 0.01));
+                const atMs = base + Math.floor((i + 1) * 9 * 3600 * 1000 * (0.7 + rng() * 0.8));
+                const r = rng();
+                const status: Signal["status"] = r < 0.2 ? "SL" : r < 0.55 ? "TP" : "Aktiv";
+                return { id: `${i}-${sym}`, symbol: sym, dir, entry, sl, tp, atMs, status };
+            })
+            .sort((a, b) => b.atMs - a.atMs);
     }, [instanceId, team]);
 
     const rows = useMemo(() => {
         const src = mode === "active" ? rowsAll.filter((r) => r.status === "Aktiv") : rowsAll;
-        return src.slice(0, 6);
+        return src.slice(0, 10);
     }, [rowsAll, mode]);
 
     return (
-        <div className="rounded-xl p-4 bg-neutral-900/60 dark:bg-neutral-800/60 border border-neutral-800">
-            <div className="flex items-center justify-between mb-3">
+        <div className="rounded-xl p-4 bg-neutral-900/60 border border-neutral-800">
+            <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <div className="font-medium">Community Signals</div>
-                    <HelpTip text="Toggle for at se seneste eller kun aktive signaler. Demo-data pr. team." />
+                    <HelpTip text="Seneste eller aktive signaler fra dit community. Demo-data pr. team." />
                 </div>
                 <div className="flex items-center gap-3">
                     {/* Mode toggle */}
@@ -106,14 +111,18 @@ export default function CommunitySignalsWidget({ instanceId }: Props) {
                     <tbody className="divide-y divide-neutral-800">
                     {rows.map((s) => (
                         <tr key={s.id}>
-                            <td className="py-2 text-neutral-400">{fmt(s.atMs)}</td>
+                            <td className="py-2 text-neutral-400">
+                                {formatDateTime(s.atMs, prefs, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                            </td>
                             <td className="py-2">{s.symbol}</td>
                             <td className="py-2">
-                  <span className={`px-2 py-0.5 rounded-full border text-xs ${
-                      s.dir === "Long"
-                          ? "border-emerald-600/50 text-emerald-200 bg-emerald-600/20"
-                          : "border-rose-600/50 text-rose-200 bg-rose-600/20"
-                  }`}>
+                  <span
+                      className={`px-2 py-0.5 rounded-full border text-xs ${
+                          s.dir === "Long"
+                              ? "border-emerald-600/50 text-emerald-200 bg-emerald-600/20"
+                              : "border-rose-600/50 text-rose-200 bg-rose-600/20"
+                      }`}
+                  >
                     {s.dir}
                   </span>
                             </td>
@@ -128,7 +137,6 @@ export default function CommunitySignalsWidget({ instanceId }: Props) {
                     </tbody>
                 </table>
             </div>
-
         </div>
     );
 }

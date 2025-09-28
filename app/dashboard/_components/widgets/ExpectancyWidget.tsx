@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import PeriodToggle, { PeriodValue } from "../PeriodToggle";
 import HelpTip from "../HelpTip";
 import { seededRng } from "../seededRandom";
+import { usePrefs } from "@/lib/usePrefs";
+import { formatDate } from "@/lib/format";
 
 /**
  * ExpectancyWidget v1.3 (hydration-safe)
@@ -28,6 +30,8 @@ function makeCurrencyFormatter(currency: string) {
 }
 
 export default function ExpectancyWidget({ instanceId }: Props) {
+    const { prefs } = usePrefs();
+
     const [period, setPeriod] = useState<PeriodValue>("day");
     const displayCurrency = useDisplayCurrency();
     const fmt = makeCurrencyFormatter(displayCurrency);
@@ -94,10 +98,16 @@ export default function ExpectancyWidget({ instanceId }: Props) {
             }
             const typicalRisk = risks.length ? median(risks) : 0;
             pts.push(evR * typicalRisk); // ← currency-værdi for vinduet
-            labels.push(windowLabelUTC(w, period));
+
+            // ✅ Dato-labels med brugerens præferencer
+            labels.push(
+                period === "day"
+                    ? formatDate(w.end - 1, prefs)
+                    : `${formatDate(w.start, prefs)}–${formatDate(w.end - 1, prefs)}`
+            );
         }
         return { points: pts, labels };
-    }, [trades, period]);
+    }, [trades, period, prefs]);
 
     return (
         <div

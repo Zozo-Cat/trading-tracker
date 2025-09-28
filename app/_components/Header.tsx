@@ -5,10 +5,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell } from "lucide-react";
 import CommunityPicker from "@/app/_components/CommunityPicker";
-
-// Supabase hooks/klient + router til logout-redirect
 import { useSession, useSupabaseClient } from "@/app/_components/Providers";
 import { useRouter } from "next/navigation";
+
+// 🆕 prefs + formattere
+import { usePrefs } from "@/lib/usePrefs";
+import { formatDateTime } from "@/lib/format";
 
 type Notif = {
     id: string;
@@ -23,14 +25,16 @@ function isNotifArray(val: any): val is Notif[] {
 
 export default function Header() {
     const router = useRouter();
-    const session = useSession();                 // Supabase session (null hvis ikke logget ind)
-    const supabase = useSupabaseClient();         // Supabase client via Provider
+    const session = useSession();
+    const supabase = useSupabaseClient();
     const user = (session?.user as any) || null;
+
+    const { prefs } = usePrefs(); // ← brugerens sprog/tidszone/datoformat
 
     const [mounted, setMounted] = useState(false);
     useEffect(() => setMounted(true), []);
 
-    /* -------------------- NOTIF DROPDOWN (uændret) -------------------- */
+    // ---------- NOTIF DROPDOWN ----------
     const [open, setOpen] = useState(false);
     const [pos, setPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
     const bellBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -103,7 +107,7 @@ export default function Header() {
         router.refresh();
     };
 
-    /* -------------------- AVATAR / USER MENU (fixed position + realtime) -------------------- */
+    // ---------- USER MENU (uændret fra din seneste version) ----------
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const userMenuBtnRef = useRef<HTMLButtonElement | null>(null);
     const [userMenuPos, setUserMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
@@ -112,7 +116,7 @@ export default function Header() {
         const el = userMenuBtnRef.current;
         if (!el) return;
         const rect = el.getBoundingClientRect();
-        const menuWidth = 224; // ~ min-w-56
+        const menuWidth = 224;
         const gap = 8;
         const top = rect.bottom + gap;
         const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
@@ -142,7 +146,7 @@ export default function Header() {
         };
     }, [userMenuOpen]);
 
-    // Hent avatar fra profiles (fallback til user metadata) + realtime opdatering
+    // Realtime avatar til header (som vi satte op tidligere)
     const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
     useEffect(() => {
         let cancelled = false;
@@ -248,7 +252,7 @@ export default function Header() {
                                         setOpen(o => !o);
                                         requestAnimationFrame(placeDropdown);
                                     }}
-                                    className="relative rounded-full p-2 hover:bg-white/5"
+                                    className="relative rounded-full p-2 hover:bg:white/5"
                                     aria-label="Notifikationer"
                                     aria-expanded={open}
                                     type="button"
@@ -265,7 +269,7 @@ export default function Header() {
                                 </button>
                             </div>
 
-                            {/* AVATAR-KNAP */}
+                            {/* AVATAR → user menu */}
                             <button
                                 ref={userMenuBtnRef}
                                 onClick={() => setUserMenuOpen(v => !v)}
@@ -284,7 +288,7 @@ export default function Header() {
                                 />
                             </button>
 
-                            {/* USER MENU DROPDOWN – fixed så den aldrig clips */}
+                            {/* USER MENU */}
                             {mounted && user && userMenuOpen && (
                                 <div
                                     id="tt-user-menu-dropdown"
@@ -373,7 +377,7 @@ export default function Header() {
                                 {notifs.slice(0, 8).map(n => {
                                     const body = (
                                         <div
-                                            className="flex items-start gap-3 px-4 py-3 hover:bg-white/5 cursor-pointer"
+                                            className="flex items-start gap-3 px-4 py-3 hover:bg:white/5 cursor-pointer"
                                             onClick={e => {
                                                 e.stopPropagation();
                                                 markOneRead(n.id);
@@ -387,7 +391,9 @@ export default function Header() {
                                             )}
                                             <div className="flex-1">
                                                 <div className="text-sm text-gray-100">{n.title}</div>
-                                                <div className="text-xs text-gray-400 mt-0.5">{new Date(n.createdAt).toLocaleString()}</div>
+                                                <div className="text-xs text-gray-400 mt-0.5">
+                                                    {formatDateTime(n.createdAt, prefs, { hour: "2-digit", minute: "2-digit" })}
+                                                </div>
                                             </div>
                                         </div>
                                     );
