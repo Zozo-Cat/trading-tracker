@@ -1,3 +1,4 @@
+// app/settings/personal/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -6,6 +7,7 @@ import AvatarCropper from "../_components/AvatarCropper";
 import { useSupabaseClient, useSession } from "@/app/_components/Providers";
 import { useProfileStore } from "@/lib/profileStore";
 import type { Profile, AccountLink } from "@/lib/types";
+import { useRouter } from "next/navigation"; // ✅ beholdt
 
 /** Felter optionelle – vi gemmer kun det, der er sat */
 const schema = z.object({
@@ -20,10 +22,71 @@ const schema = z.object({
     week_start: z.string().optional(), // "monday" | "sunday"
 });
 
+// Fallback-liste hvis Intl.supportedValuesOf ikke findes
+const FALLBACK_TIMEZONES = [
+    "UTC",
+    "Europe/Copenhagen",
+    "Europe/London",
+    "Europe/Berlin",
+    "Europe/Paris",
+    "Europe/Madrid",
+    "Europe/Warsaw",
+    "America/New_York",
+    "America/Chicago",
+    "America/Denver",
+    "America/Los_Angeles",
+    "America/Sao_Paulo",
+    "Asia/Dubai",
+    "Asia/Kolkata",
+    "Asia/Bangkok",
+    "Asia/Singapore",
+    "Asia/Hong_Kong",
+    "Asia/Shanghai",
+    "Asia/Tokyo",
+    "Australia/Sydney",
+];
+
 export default function PersonalSettingsPage() {
     const supabase = useSupabaseClient();
     const session = useSession();
     const profile = useProfileStore((s) => s.profile);
+    const router = useRouter();
+
+    // 🔎 Brugers system-tidszone
+    const detectedTZ = useMemo(
+        () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        []
+    );
+
+    // Hele listen af TZ (browserens liste, ellers fallback)
+    const allTimeZones = useMemo<string[]>(() => {
+        try {
+            // @ts-ignore – supportedValuesOf kræver nyere TS lib
+            const list: string[] = Intl.supportedValuesOf
+                ? // @ts-ignore
+                (Intl.supportedValuesOf("timeZone") as string[])
+                : FALLBACK_TIMEZONES;
+            return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
+        } catch {
+            return FALLBACK_TIMEZONES;
+        }
+    }, []);
+
+    // Et lille "populært" udvalg først
+    const popularTZ = useMemo<string[]>(
+        () => [
+            detectedTZ,
+            "UTC",
+            "Europe/Copenhagen",
+            "Europe/London",
+            "America/New_York",
+            "America/Los_Angeles",
+            "Asia/Tokyo",
+            "Asia/Singapore",
+            "Australia/Sydney",
+        ].filter((v, i, arr) => v && arr.indexOf(v) === i),
+        [detectedTZ]
+    );
 
     // ------- FORM STATE -------
     const [form, setForm] = useState<{
@@ -41,7 +104,7 @@ export default function PersonalSettingsPage() {
         username: "",
         use_discord_avatar: false,
         locale: "da-DK",
-        timezone: "Auto/Europe/Copenhagen",
+        timezone: `Auto/${detectedTZ}`, // ✅ dynamisk auto
         date_format: "DD-MM-YYYY",
         number_format: "1.234,56 (EU)",
         currency: "DKK",
@@ -72,14 +135,14 @@ export default function PersonalSettingsPage() {
             username: profile.username ?? "",
             use_discord_avatar: profile.avatar_src === "discord",
             locale: profile.locale ?? f.locale ?? "da-DK",
-            timezone: profile.timezone ?? f.timezone ?? "Auto/Europe/Copenhagen",
+            timezone: profile.timezone ?? f.timezone ?? `Auto/${detectedTZ}`, // ✅ dynamisk auto fallback
             date_format: profile.date_format ?? f.date_format ?? "DD-MM-YYYY",
             number_format: profile.number_format ?? f.number_format ?? "1.234,56 (EU)",
             currency: profile.currency ?? f.currency ?? "DKK",
             week_start: profile.week_start ?? f.week_start ?? "monday",
         }));
         setDbAvatarUrl(profile.avatar_url ?? null);
-    }, [profile]);
+    }, [profile, detectedTZ]);
 
     // Realtime: opdatér avatar når profiles ændres (så både header og denne side følger med)
     useEffect(() => {
@@ -188,6 +251,18 @@ export default function PersonalSettingsPage() {
             const { error: upErr } = await supabase.from("profiles").upsert(payload, { onConflict: "id" });
             if (upErr) throw upErr;
 
+            // 🔄 Hent den friske række og opdatér profileStore, så usePrefs ser ændringen straks
+            if (session?.user?.id) {
+                const { data: refreshed } = await supabase
+                    .from("profiles")
+                    .select("*")
+                    .eq("id", session.user.id)
+                    .single();
+                if (refreshed) {
+                    useProfileStore.setState((s: any) => ({ ...s, profile: refreshed as Profile }));
+                }
+            }
+
             // Hvis vi lige satte discord-avatar, opdatér visning lokalt
             if (payload.avatar_url) {
                 setAvatarOverrideUrl(payload.avatar_url);
@@ -195,6 +270,7 @@ export default function PersonalSettingsPage() {
             }
 
             setMessage("Gemt ✔️");
+            router.refresh(); // sørger for at server-drevne reads også opdateres
         } catch (e: any) {
             setError(e.message ?? "Der opstod en fejl");
         } finally {
@@ -375,7 +451,7 @@ export default function PersonalSettingsPage() {
                             <select
                                 value={form.locale}
                                 onChange={(e) => setForm((f) => ({ ...f, locale: e.target.value }))}
-                                className="w-full rounded-md border border-yellow-700/50 bg-transparent px-3 py-2"
+                                className="w-full rounded-md border border-yellow-700/50 bg-[#211d1d] text-yellow-100 px-3 py-2"  // ⬅️ mørk
                             >
                                 <option value="da-DK">Dansk (Danmark)</option>
                                 <option value="en-GB">Engelsk (UK)</option>
@@ -388,11 +464,28 @@ export default function PersonalSettingsPage() {
                             <select
                                 value={form.timezone}
                                 onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))}
-                                className="w-full rounded-md border border-yellow-700/50 bg-transparent px-3 py-2"
+                                className="w-full rounded-md border border-yellow-700/50 bg-[#211d1d] text-yellow-100 px-3 py-2"  // ⬅️ mørk
                             >
-                                <option value="Auto/Europe/Copenhagen">Auto (Europe/Copenhagen)</option>
-                                <option value="Europe/Copenhagen">Europe/Copenhagen</option>
-                                <option value="UTC">UTC</option>
+                                {/* Auto (system) */}
+                                <option value={`Auto/${detectedTZ}`}>Auto ({detectedTZ})</option>
+
+                                {/* Populære */}
+                                <optgroup label="Populære">
+                                    {popularTZ.map((tz) => (
+                                        <option key={`pop-${tz}`} value={tz}>
+                                            {tz}
+                                        </option>
+                                    ))}
+                                </optgroup>
+
+                                {/* Alle tidszoner */}
+                                <optgroup label="Alle tidszoner">
+                                    {allTimeZones.map((tz) => (
+                                        <option key={tz} value={tz}>
+                                            {tz}
+                                        </option>
+                                    ))}
+                                </optgroup>
                             </select>
                         </label>
 
@@ -401,7 +494,7 @@ export default function PersonalSettingsPage() {
                             <select
                                 value={form.date_format}
                                 onChange={(e) => setForm((f) => ({ ...f, date_format: e.target.value }))}
-                                className="w-full rounded-md border border-yellow-700/50 bg-transparent px-3 py-2"
+                                className="w-full rounded-md border border-yellow-700/50 bg-[#211d1d] text-yellow-100 px-3 py-2"  // ⬅️ mørk
                             >
                                 <option>DD-MM-YYYY</option>
                                 <option>YYYY-MM-DD</option>
@@ -414,7 +507,7 @@ export default function PersonalSettingsPage() {
                             <select
                                 value={form.currency}
                                 onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
-                                className="w-full rounded-md border border-yellow-700/50 bg-transparent px-3 py-2"
+                                className="w-full rounded-md border border-yellow-700/50 bg-[#211d1d] text-yellow-100 px-3 py-2"  // ⬅️ mørk
                             >
                                 <option>DKK</option>
                                 <option>EUR</option>
@@ -429,7 +522,7 @@ export default function PersonalSettingsPage() {
                             <select
                                 value={form.number_format}
                                 onChange={(e) => setForm((f) => ({ ...f, number_format: e.target.value }))}
-                                className="w-full rounded-md border border-yellow-700/50 bg-transparent px-3 py-2"
+                                className="w-full rounded-md border border-yellow-700/50 bg-[#211d1d] text-yellow-100 px-3 py-2"  // ⬅️ mørk
                             >
                                 <option>1.234,56 (EU)</option>
                                 <option>1,234.56 (US)</option>
@@ -441,7 +534,7 @@ export default function PersonalSettingsPage() {
                             <select
                                 value={form.week_start}
                                 onChange={(e) => setForm((f) => ({ ...f, week_start: e.target.value }))}
-                                className="w-full rounded-md border border-yellow-700/50 bg-transparent px-3 py-2"
+                                className="w-full rounded-md border border-yellow-700/50 bg-[#211d1d] text-yellow-100 px-3 py-2"  // ⬅️ mørk
                             >
                                 <option value="monday">Mandag</option>
                                 <option value="sunday">Søndag</option>
