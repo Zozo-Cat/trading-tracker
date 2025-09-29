@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { usePrefs } from "@/lib/usePrefs";
 import { formatDateTime } from "@/lib/format";
 
+
 type Notif = {
     id: string;
     title: string;
