@@ -12,7 +12,6 @@ import { useRouter } from "next/navigation";
 import { usePrefs } from "@/lib/usePrefs";
 import { formatDateTime } from "@/lib/format";
 
-
 type Notif = {
     id: string;
     title: string;
@@ -21,7 +20,7 @@ type Notif = {
     read: boolean;
 };
 function isNotifArray(val: any): val is Notif[] {
-    return Array.isArray(val) && val.every(n => n && typeof n.id === "string" && typeof n.title === "string");
+    return Array.isArray(val) && val.every((n) => n && typeof n.id === "string" && typeof n.title === "string");
 }
 
 export default function Header() {
@@ -65,14 +64,12 @@ export default function Header() {
     }, [open]);
 
     const LS_KEY = useMemo(() => (user ? `tt_notifs_${user.id}` : null), [user?.id]);
-
     const seedForUser = (): Notif[] => {
         const now = new Date();
         const ago = (mins: number) => new Date(now.getTime() - mins * 60 * 1000).toISOString();
         if (!user) return [];
         return [{ id: "s1", title: "Velkommen til Trading Tracker 🚀", href: "/", createdAt: ago(1), read: false }];
     };
-
     const [notifs, setNotifs] = useState<Notif[]>([]);
     const loadFromStorage = () => {
         if (!LS_KEY) return;
@@ -98,9 +95,11 @@ export default function Header() {
         if (mounted && LS_KEY) loadFromStorage();
     }, [mounted, LS_KEY]);
 
-    const unreadCount = isNotifArray(notifs) ? notifs.reduce((acc, n) => acc + (n.read ? 0 : 1), 0) : 0;
-    const markAllRead = () => setNotifs(arr => arr.map(n => ({ ...n, read: true })));
-    const markOneRead = (id: string) => setNotifs(arr => arr.map(n => (n.id === id ? { ...n, read: true } : n)));
+    const unreadCount = isNotifArray(notifs)
+        ? notifs.reduce((acc, n) => acc + (n.read ? 0 : 1), 0)
+        : 0;
+    const markAllRead = () => setNotifs((arr) => arr.map((n) => ({ ...n, read: true })));
+    const markOneRead = (id: string) => setNotifs((arr) => arr.map((n) => (n.id === id ? { ...n, read: true } : n)));
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -108,7 +107,7 @@ export default function Header() {
         router.refresh();
     };
 
-    // ---------- USER MENU (uændret fra din seneste version) ----------
+    // ---------- USER MENU ----------
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const userMenuBtnRef = useRef<HTMLButtonElement | null>(null);
     const [userMenuPos, setUserMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
@@ -147,20 +146,25 @@ export default function Header() {
         };
     }, [userMenuOpen]);
 
-    // Realtime avatar til header (som vi satte op tidligere)
+    // ---------- Avatar + 2FA status ----------
     const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
+    const [hasTotp, setHasTotp] = useState<boolean>(false);
+
     useEffect(() => {
         let cancelled = false;
         let channel: ReturnType<typeof supabase.channel> | null = null;
 
         async function loadOnce() {
-            if (!user) { setProfileAvatar(null); return; }
+            if (!user) return;
             const { data, error } = await supabase
                 .from("profiles")
-                .select("avatar_url")
+                .select("avatar_url, has_totp")
                 .eq("id", user.id)
                 .maybeSingle();
-            if (!cancelled) setProfileAvatar(!error && data ? (data.avatar_url ?? null) : null);
+            if (!cancelled && !error && data) {
+                setProfileAvatar(data.avatar_url ?? null);
+                setHasTotp(!!data.has_totp);
+            }
         }
 
         async function subscribe() {
@@ -171,8 +175,9 @@ export default function Header() {
                     "postgres_changes",
                     { event: "*", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
                     (payload) => {
-                        const next = (payload.new as any)?.avatar_url ?? null;
-                        setProfileAvatar(next);
+                        const next = (payload.new as any) ?? {};
+                        if (next.avatar_url !== undefined) setProfileAvatar(next.avatar_url);
+                        if (next.has_totp !== undefined) setHasTotp(!!next.has_totp);
                     }
                 )
                 .subscribe();
@@ -199,7 +204,14 @@ export default function Header() {
             <div className="mx-auto max-w-7xl px-4 py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 {/* Logo */}
                 <Link href="/" className="flex items-center gap-3">
-                    <Image src="/images/trading.png" alt="Trading Tracker logo" width={150} height={150} priority className="-mt-1" />
+                    <Image
+                        src="/images/trading.png"
+                        alt="Trading Tracker logo"
+                        width={150}
+                        height={150}
+                        priority
+                        className="-mt-1"
+                    />
                 </Link>
 
                 <nav className="flex items-center gap-2 sm:gap-3 flex-wrap overflow-x-hidden">
@@ -250,10 +262,10 @@ export default function Header() {
                                 <button
                                     ref={bellBtnRef}
                                     onClick={() => {
-                                        setOpen(o => !o);
+                                        setOpen((o) => !o);
                                         requestAnimationFrame(placeDropdown);
                                     }}
-                                    className="relative rounded-full p-2 hover:bg:white/5"
+                                    className="relative rounded-full p-2 hover:bg-white/5"
                                     aria-label="Notifikationer"
                                     aria-expanded={open}
                                     type="button"
@@ -270,24 +282,37 @@ export default function Header() {
                                 </button>
                             </div>
 
-                            {/* AVATAR → user menu */}
-                            <button
-                                ref={userMenuBtnRef}
-                                onClick={() => setUserMenuOpen(v => !v)}
-                                className="flex items-center"
-                                aria-label="Bruger menu"
-                                aria-expanded={userMenuOpen}
-                                type="button"
-                            >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                    src={avatarUrl}
-                                    alt="Profil"
-                                    width={36}
-                                    height={36}
-                                    className="rounded-full border border-gray-500"
-                                />
-                            </button>
+                            {/* AVATAR + 2FA badge */}
+                            <div className="flex items-center gap-2">
+                                <button
+                                    ref={userMenuBtnRef}
+                                    onClick={() => setUserMenuOpen((v) => !v)}
+                                    className="flex items-center"
+                                    aria-label="Bruger menu"
+                                    aria-expanded={userMenuOpen}
+                                    type="button"
+                                >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                        src={avatarUrl}
+                                        alt="Profil"
+                                        width={36}
+                                        height={36}
+                                        className="rounded-full border border-gray-500"
+                                    />
+                                </button>
+
+                                {/* 🔒 Badge */}
+                                <span
+                                    className={`text-xs px-2 py-1 rounded-md font-medium ${
+                                        hasTotp
+                                            ? "bg-green-700/40 text-green-300 border border-green-600/60"
+                                            : "bg-yellow-800/30 text-yellow-300 border border-yellow-600/40"
+                                    }`}
+                                >
+                  {hasTotp ? "🔒 2FA aktiv" : "⚠️ 2FA inaktiv"}
+                </span>
+                            </div>
 
                             {/* USER MENU */}
                             {mounted && user && userMenuOpen && (
@@ -307,7 +332,7 @@ export default function Header() {
                                 >
                                     <Link
                                         href="/settings"
-                                        className="block px-3 py-2 rounded-lg hover:bg:white/5"
+                                        className="block px-3 py-2 rounded-lg hover:bg-white/5"
                                         style={{ color: "#D4AF37" }}
                                         role="menuitem"
                                         onClick={() => setUserMenuOpen(false)}
@@ -316,7 +341,7 @@ export default function Header() {
                                     </Link>
                                     <Link
                                         href="/trading/settings"
-                                        className="block px-3 py-2 rounded-lg hover:bg:white/5"
+                                        className="block px-3 py-2 rounded-lg hover:bg-white/5"
                                         style={{ color: "#D4AF37" }}
                                         role="menuitem"
                                         onClick={() => setUserMenuOpen(false)}
@@ -355,7 +380,10 @@ export default function Header() {
                         boxShadow: "0 10px 30px rgba(0,0,0,.4)",
                     }}
                 >
-                    <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: "#3b3838" }}>
+                    <div
+                        className="flex items-center justify-between px-3 py-2 border-b"
+                        style={{ borderColor: "#3b3838" }}
+                    >
             <span className="text-sm" style={{ color: "#D4AF37" }}>
               Notifikationer
             </span>
@@ -375,11 +403,11 @@ export default function Header() {
                             <div className="px-4 py-6 text-center text-sm text-gray-300">Ingen notifikationer</div>
                         ) : (
                             <ul className="divide-y" style={{ borderColor: "#3b3838" }}>
-                                {notifs.slice(0, 8).map(n => {
+                                {notifs.slice(0, 8).map((n) => {
                                     const body = (
                                         <div
-                                            className="flex items-start gap-3 px-4 py-3 hover:bg:white/5 cursor-pointer"
-                                            onClick={e => {
+                                            className="flex items-start gap-3 px-4 py-3 hover:bg-white/5 cursor-pointer"
+                                            onClick={(e) => {
                                                 e.stopPropagation();
                                                 markOneRead(n.id);
                                                 setOpen(false);
@@ -398,7 +426,9 @@ export default function Header() {
                                             </div>
                                         </div>
                                     );
-                                    return <li key={n.id}>{n.href ? <Link href={n.href} className="block">{body}</Link> : body}</li>;
+                                    return (
+                                        <li key={n.id}>{n.href ? <Link href={n.href} className="block">{body}</Link> : body}</li>
+                                    );
                                 })}
                             </ul>
                         )}
